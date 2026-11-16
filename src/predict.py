@@ -17,6 +17,7 @@ if PROJECT_ROOT not in sys.path:
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
 import joblib
+import numpy as np
 import pandas as pd
 
 from src.delay_propagation import simulate_delay_impact
@@ -97,6 +98,57 @@ class ShipmentInferenceEngine:
             "risk_tier": risk_tier,
             "explanation": explanation,
         }
+
+    def predict_batch(self, shipments: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        High-throughput vectorized batch prediction for thousands of shipments simultaneously.
+        Processes entire DataFrames in vectorized C-level execution.
+        """
+        if not shipments:
+            return []
+
+        df_input = pd.DataFrame(shipments)
+
+        # 1. Vectorized Regressor Prediction
+        delays = np.round(self.reg_pipeline.predict(df_input), 2)
+
+        # 2. Vectorized Classifier Prediction & Probability
+        probs = self.clf_pipeline.predict_proba(df_input)[:, 1]
+        is_delayed_flags = (probs >= 0.5).astype(int)
+
+        results = []
+        for i, row_dict in enumerate(shipments):
+            delay_h = float(delays[i])
+            prob = float(probs[i])
+            flag = int(is_delayed_flags[i])
+
+            sched_delivery = row_dict.get("scheduled_delivery")
+            predicted_eta_iso = None
+            if sched_delivery:
+                try:
+                    sched_dt = datetime.fromisoformat(str(sched_delivery))
+                    predicted_eta_iso = (sched_dt + timedelta(hours=delay_h)).isoformat()
+                except Exception:
+                    pass
+
+            if prob < 0.35:
+                tier = "LOW"
+            elif prob < 0.70:
+                tier = "MEDIUM"
+            else:
+                tier = "HIGH"
+
+            results.append({
+                "shipment_id": row_dict.get("shipment_id", f"BATCH-{i:04d}"),
+                "predicted_delay_hours": delay_h,
+                "predicted_eta": predicted_eta_iso,
+                "scheduled_delivery": sched_delivery,
+                "delay_probability": round(prob, 4),
+                "is_delayed_24h": flag,
+                "risk_tier": tier,
+            })
+
+        return results
 
     def simulate_delay_impact_on_shipment(
         self,

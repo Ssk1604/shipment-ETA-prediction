@@ -1,15 +1,11 @@
 """
 Synthetic Shipment Dataset Generator for Aiqon ETA & Delay Propagation.
 
-Generates realistic international maritime shipment records adhering to:
-- Physical transit constraints (distance, nominal vessel speed ~35 km/h).
-- Realistic weather impact (severity 1.0 - 5.0).
-- Port congestion queues (anchorage dwell time).
-- Customs clearance variances and random inspections.
-- Commercial schedule slack (buffers that absorb modest delays).
-- Missing telemetry timestamps (~8% missing port arrivals) to test imputation.
-- Calibrated delay distribution (approx 25-35% delayed >= 24h).
-- Reproducibility via fixed random seed (default: 42).
+Supports both:
+1. Standard evaluation dataset (~250 records).
+2. Large-scale high-throughput dataset generation (10,000 - 500,000+ records)
+   using vectorized NumPy array operations and columnar Apache Parquet storage.
+3. Automatic sync with SQLite indexed database.
 """
 
 import os
@@ -17,6 +13,8 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 import numpy as np
 import pandas as pd
+
+from src.database import bulk_insert_shipments
 
 
 GLOBAL_ROUTES = [
@@ -41,9 +39,10 @@ def generate_shipment_dataset(
 ) -> pd.DataFrame:
     """
     Generates a realistic synthetic dataset of international maritime shipments.
+    Fully vectorized across arrays for high performance scalability.
 
     Args:
-        n_samples: Total number of shipment records (~250).
+        n_samples: Total number of shipment records.
         random_seed: Seed for NumPy RNG reproducibility.
         missing_telemetry_rate: Fraction of intermediate port arrival timestamps to omit.
         start_date: Beginning baseline timestamp for scheduled departures.
@@ -52,149 +51,170 @@ def generate_shipment_dataset(
         pd.DataFrame containing complete operational and target columns.
     """
     rng = np.random.default_rng(random_seed)
-    records: List[Dict] = []
 
-    for i in range(1, n_samples + 1):
-        shipment_id = f"SHP-2026-{i:04d}"
-        route_meta = GLOBAL_ROUTES[rng.choice(len(GLOBAL_ROUTES))]
-        route = route_meta["route"]
-        origin = route_meta["origin"]
-        destination = route_meta["destination"]
-        distance_km = float(route_meta["distance_km"])
+    # 1. Route Assignment Vectorized
+    route_indices = rng.choice(len(GLOBAL_ROUTES), size=n_samples)
+    routes = [GLOBAL_ROUTES[idx]["route"] for idx in route_indices]
+    origins = [GLOBAL_ROUTES[idx]["origin"] for idx in route_indices]
+    destinations = [GLOBAL_ROUTES[idx]["destination"] for idx in route_indices]
+    distances = np.array([GLOBAL_ROUTES[idx]["distance_km"] for idx in route_indices], dtype=np.float64)
 
-        # Scheduled Departure staggered across a 90-day window
-        dep_day_offset = float(rng.uniform(0, 90))
-        dep_hour_offset = float(rng.choice([8.0, 14.0, 20.0]))
-        scheduled_departure = start_date + timedelta(days=dep_day_offset, hours=dep_hour_offset)
+    # 2. Timeline Offsets
+    dep_day_offsets = rng.uniform(0, 90, size=n_samples)
+    dep_hour_offsets = rng.choice([8.0, 14.0, 20.0], size=n_samples)
+    total_sec_offsets = (dep_day_offsets * 86400) + (dep_hour_offsets * 3600)
+    scheduled_departures = [start_date + timedelta(seconds=float(s)) for s in total_sec_offsets]
 
-        # 1. Origin Terminal & Departure Disruption
-        # Carrier reliability rating (0.50 to 0.98)
-        carrier_rating = round(float(rng.beta(7, 3)), 2)
-        is_origin_delayed = rng.random() > (carrier_rating * 0.9)
-        if is_origin_delayed:
-            departure_delay_hours = round(float(rng.exponential(scale=18.0)), 2)
-        else:
-            departure_delay_hours = round(float(rng.normal(loc=1.0, scale=2.5)), 2)
-            departure_delay_hours = max(-3.0, departure_delay_hours)  # Cap early departure at 3h
+    # 3. Origin Departure Disruption
+    carrier_ratings = np.round(rng.beta(7, 3, size=n_samples), 2)
+    is_origin_delayed = rng.random(size=n_samples) > (carrier_ratings * 0.9)
+    exp_delays = np.round(rng.exponential(scale=18.0, size=n_samples), 2)
+    norm_delays = np.maximum(-3.0, np.round(rng.normal(loc=1.0, scale=2.5, size=n_samples), 2))
+    departure_delay_hours = np.where(is_origin_delayed, exp_delays, norm_delays)
 
-        actual_departure = scheduled_departure + timedelta(hours=departure_delay_hours)
+    actual_departures = [
+        sched + timedelta(hours=float(d))
+        for sched, d in zip(scheduled_departures, departure_delay_hours)
+    ]
 
-        # 2. Ocean Transit
-        # Vessel nominal cruising speed: ~35 km/h
-        nominal_speed = float(rng.normal(loc=35.0, scale=1.2))
-        nominal_transit_hours = distance_km / nominal_speed
-        
-        # Planned commercial buffer for transit: realistic 16 to 28 hours
-        transit_buffer_hours = float(rng.uniform(16.0, 28.0))
-        scheduled_transit_hours = nominal_transit_hours + transit_buffer_hours
-        scheduled_port_arrival = scheduled_departure + timedelta(hours=scheduled_transit_hours)
+    # 4. Ocean Transit
+    nominal_speeds = rng.normal(loc=35.0, scale=1.2, size=n_samples)
+    nominal_transit_hours = distances / nominal_speeds
+    transit_buffer_hours = rng.uniform(16.0, 28.0, size=n_samples)
+    scheduled_transit_hours = nominal_transit_hours + transit_buffer_hours
 
-        # Weather Severity: 1.0 (calm) to 5.0 (storm/typhoon)
-        weather_severity = round(float(np.clip(rng.gamma(shape=2.5, scale=0.8), 1.0, 5.0)), 2)
-        
-        # Weather disruption adds sailing delay
-        weather_transit_disruption = round(
-            float(rng.exponential(scale=max(1.0, (weather_severity - 1.5) * 9.0))), 2
-        )
+    scheduled_port_arrivals = [
+        sched + timedelta(hours=float(h))
+        for sched, h in zip(scheduled_departures, scheduled_transit_hours)
+    ]
 
-        actual_transit_hours = nominal_transit_hours + weather_transit_disruption
-        actual_port_arrival = actual_departure + timedelta(hours=actual_transit_hours)
+    # Weather & Ocean Disruption
+    weather_severities = np.round(np.clip(rng.gamma(shape=2.5, scale=0.8, size=n_samples), 1.0, 5.0), 2)
+    weather_scales = np.maximum(1.0, (weather_severities - 1.5) * 9.0)
+    weather_transit_disruptions = np.round(rng.exponential(scale=weather_scales), 2)
 
-        port_arrival_delay_hours = round(
-            (actual_port_arrival - scheduled_port_arrival).total_seconds() / 3600.0, 2
-        )
+    actual_transit_hours = nominal_transit_hours + weather_transit_disruptions
+    actual_port_arrivals = [
+        act_dep + timedelta(hours=float(h))
+        for act_dep, h in zip(actual_departures, actual_transit_hours)
+    ]
 
-        # 3. Port Congestion & Offloading
-        # Port congestion index (0.0 to 1.0)
-        port_congestion = round(float(rng.beta(2.5, 3.5)), 2)
-        nominal_port_processing = float(rng.uniform(20.0, 30.0))
-        
-        # Congestion delay: waiting at anchorage outside the port before berth opens
-        congestion_wait_hours = round(port_congestion * float(rng.uniform(24.0, 72.0)), 2)
-        port_processing_hours = round(nominal_port_processing + congestion_wait_hours, 2)
+    port_arrival_delay_hours = np.array([
+        round((act - sched).total_seconds() / 3600.0, 2)
+        for act, sched in zip(actual_port_arrivals, scheduled_port_arrivals)
+    ])
 
-        # 4. Customs Processing
-        # Standard customs takes 12-20 hours; regulatory inspection/audit can add 20-60 hours
-        has_customs_hold = rng.random() < 0.22
-        customs_hold_hours = float(rng.uniform(20.0, 56.0)) if has_customs_hold else float(rng.uniform(0.0, 4.0))
-        nominal_customs_hours = float(rng.uniform(12.0, 18.0))
-        customs_processing_hours = round(nominal_customs_hours + customs_hold_hours, 2)
+    # 5. Port Congestion & Handling
+    port_congestions = np.round(rng.beta(2.5, 3.5, size=n_samples), 2)
+    nominal_port_processing = rng.uniform(20.0, 30.0, size=n_samples)
+    congestion_wait_hours = np.round(port_congestions * rng.uniform(24.0, 72.0, size=n_samples), 2)
+    port_processing_hours = np.round(nominal_port_processing + congestion_wait_hours, 2)
 
-        # 5. Hinterland Drayage & Final Delivery
-        nominal_hinterland_hours = float(rng.uniform(20.0, 32.0))
-        
-        # Scheduled port, customs, and inland allocations in contract SLA
-        scheduled_port_handling = 24.0
-        scheduled_customs_clearance = 16.0
-        scheduled_hinterland = 28.0
-        
-        scheduled_delivery = scheduled_port_arrival + timedelta(
-            hours=(scheduled_port_handling + scheduled_customs_clearance + scheduled_hinterland)
-        )
+    # 6. Customs Processing
+    has_customs_holds = rng.random(size=n_samples) < 0.22
+    customs_hold_hours = np.where(has_customs_holds, rng.uniform(20.0, 56.0, size=n_samples), rng.uniform(0.0, 4.0, size=n_samples))
+    nominal_customs = rng.uniform(12.0, 18.0, size=n_samples)
+    customs_processing_hours = np.round(nominal_customs + customs_hold_hours, 2)
 
-        # Actual Delivery
-        actual_delivery = actual_port_arrival + timedelta(
-            hours=(port_processing_hours + customs_processing_hours + nominal_hinterland_hours)
-        )
+    # 7. Hinterland Drayage & Final Delivery
+    nominal_hinterlands = rng.uniform(20.0, 32.0, size=n_samples)
+    scheduled_port_handling = 24.0
+    scheduled_customs_clearance = 16.0
+    scheduled_hinterland = 28.0
 
-        final_delay_hours = round(
-            (actual_delivery - scheduled_delivery).total_seconds() / 3600.0, 2
-        )
-        is_delayed_24h = int(final_delay_hours >= 24.0)
+    scheduled_deliveries = [
+        sched_port + timedelta(hours=(scheduled_port_handling + scheduled_customs_clearance + scheduled_hinterland))
+        for sched_port in scheduled_port_arrivals
+    ]
 
-        # Telemetry missingness: mask actual_port_arrival in ~8% of records
-        has_missing_telemetry = rng.random() < missing_telemetry_rate
-        reported_port_arrival: Optional[str] = (
-            None if has_missing_telemetry else actual_port_arrival.isoformat()
-        )
-        reported_port_delay: Optional[float] = (
-            None if has_missing_telemetry else port_arrival_delay_hours
-        )
+    actual_deliveries = [
+        act_port + timedelta(hours=float(p + c + h))
+        for act_port, p, c, h in zip(actual_port_arrivals, port_processing_hours, customs_processing_hours, nominal_hinterlands)
+    ]
 
-        records.append({
-            "shipment_id": shipment_id,
-            "origin": origin,
-            "destination": destination,
-            "route": route,
-            "distance_km": distance_km,
-            "carrier_rating": carrier_rating,
-            "scheduled_departure": scheduled_departure.isoformat(),
-            "actual_departure": actual_departure.isoformat(),
-            "departure_delay_hours": departure_delay_hours,
-            "scheduled_port_arrival": scheduled_port_arrival.isoformat(),
-            "actual_port_arrival": reported_port_arrival,
-            "port_arrival_delay_hours": reported_port_delay,
-            "port_congestion": port_congestion,
-            "weather_severity": weather_severity,
-            "port_processing_hours": port_processing_hours,
-            "customs_processing_hours": customs_processing_hours,
-            "scheduled_delivery": scheduled_delivery.isoformat(),
-            "actual_delivery": actual_delivery.isoformat(),
-            "final_delay_hours": final_delay_hours,
-            "is_delayed_24h": is_delayed_24h,
-        })
+    final_delay_hours = np.array([
+        round((act - sched).total_seconds() / 3600.0, 2)
+        for act, sched in zip(actual_deliveries, scheduled_deliveries)
+    ])
+    is_delayed_24h = (final_delay_hours >= 24.0).astype(int)
 
-    df = pd.DataFrame(records)
-    # Sort chronologically by scheduled departure for realistic time-series / temporal validation
+    # Telemetry Dropout Simulation
+    has_missing_telemetry = rng.random(size=n_samples) < missing_telemetry_rate
+
+    shipment_ids = [f"SHP-2026-{i:04d}" for i in range(1, n_samples + 1)]
+
+    reported_port_arrivals = [
+        None if missing else act.isoformat()
+        for missing, act in zip(has_missing_telemetry, actual_port_arrivals)
+    ]
+    reported_port_delays = [
+        None if missing else float(delay)
+        for missing, delay in zip(has_missing_telemetry, port_arrival_delay_hours)
+    ]
+
+    df = pd.DataFrame({
+        "shipment_id": shipment_ids,
+        "origin": origins,
+        "destination": destinations,
+        "route": routes,
+        "distance_km": distances,
+        "carrier_rating": carrier_ratings,
+        "scheduled_departure": [s.isoformat() for s in scheduled_departures],
+        "actual_departure": [a.isoformat() for a in actual_departures],
+        "departure_delay_hours": departure_delay_hours,
+        "scheduled_port_arrival": [s.isoformat() for s in scheduled_port_arrivals],
+        "actual_port_arrival": reported_port_arrivals,
+        "port_arrival_delay_hours": reported_port_delays,
+        "port_congestion": port_congestions,
+        "weather_severity": weather_severities,
+        "port_processing_hours": port_processing_hours,
+        "customs_processing_hours": customs_processing_hours,
+        "scheduled_delivery": [s.isoformat() for s in scheduled_deliveries],
+        "actual_delivery": [a.isoformat() for a in actual_deliveries],
+        "final_delay_hours": final_delay_hours,
+        "is_delayed_24h": is_delayed_24h,
+    })
+
     df = df.sort_values(by="scheduled_departure").reset_index(drop=True)
     return df
 
 
-def save_dataset(df: pd.DataFrame, output_path: str = "dataset/shipments.csv") -> str:
-    """Saves generated shipment records to CSV."""
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    df.to_csv(output_path, index=False)
-    return output_path
+def save_dataset(
+    df: pd.DataFrame,
+    output_csv: str = "dataset/shipments.csv",
+    output_parquet: str = "dataset/shipments.parquet",
+    sync_db: bool = True,
+) -> Dict[str, str]:
+    """
+    Saves dataset to CSV, high-performance compressed Parquet, and syncs with SQLite database.
+    """
+    os.makedirs(os.path.dirname(output_csv), exist_ok=True)
+    
+    # 1. Save CSV
+    df.to_csv(output_csv, index=False)
+    
+    # 2. Save Columnar Parquet (Snappy compression for 10x faster reads)
+    try:
+        df.to_parquet(output_parquet, index=False, compression="snappy")
+    except Exception as e:
+        print(f"Parquet save warning: {e}")
+
+    # 3. Sync to Indexed SQLite Database
+    if sync_db:
+        bulk_insert_shipments(df)
+
+    return {
+        "csv": output_csv,
+        "parquet": output_parquet,
+    }
 
 
 if __name__ == "__main__":
+    import time
+    start_t = time.time()
     df = generate_shipment_dataset(n_samples=250, random_seed=42)
-    saved_file = save_dataset(df)
-    print(f"Generated {len(df)} shipment records successfully at: {saved_file}")
-    print("\nDataset Summary:")
-    print(f"Total Records: {len(df)}")
-    print(f"Missing actual_port_arrival: {df['actual_port_arrival'].isna().sum()} ({df['actual_port_arrival'].isna().mean():.1%})")
-    print(f"Mean Final Delay (hours): {df['final_delay_hours'].mean():.2f}")
-    print(f"Median Final Delay (hours): {df['final_delay_hours'].median():.2f}")
-    print(f"Delayed >= 24h: {df['is_delayed_24h'].sum()} ({df['is_delayed_24h'].mean():.1%})")
-    print(f"Min Delay: {df['final_delay_hours'].min():.2f}h, Max Delay: {df['final_delay_hours'].max():.2f}h")
+    saved = save_dataset(df)
+    elapsed = time.time() - start_t
+    print(f"Generated {len(df)} shipment records in {elapsed:.3f} seconds.")
+    print(f"Saved to:\n  - CSV: {saved['csv']}\n  - Parquet: {saved['parquet']}")
+    print(f"Mean Final Delay: {df['final_delay_hours'].mean():.2f}h | Delayed >=24h: {df['is_delayed_24h'].sum()} ({df['is_delayed_24h'].mean():.1%})")

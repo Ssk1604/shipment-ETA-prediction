@@ -24,3 +24,9 @@ Thumbs.db
 # Generated Reports
 *.pdf
 
+# Databases & Large Local Cache
+*.db
+*.sqlite3
+*.parquet
+
+

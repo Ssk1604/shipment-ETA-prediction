@@ -62,3 +62,30 @@ def test_predict_missing_telemetry(engine):
     pred = engine.predict_single(sample_shipment)
     assert pred["predicted_delay_hours"] is not None
     assert pred["delay_probability"] >= 0.0
+
+
+def test_predict_batch_throughput(engine):
+    batch = [
+        {
+            "shipment_id": f"BULK-{i:04d}",
+            "route": "ASIA-EUR-01",
+            "origin": "CNSHA",
+            "destination": "NLRTM",
+            "distance_km": 19500.0,
+            "carrier_rating": 0.85,
+            "scheduled_departure": "2026-03-01T08:00:00",
+            "departure_delay_hours": float(i % 10),
+            "port_arrival_delay_hours": float((i % 10) + 2),
+            "port_congestion": 0.4,
+            "weather_severity": 2.5,
+            "port_processing_hours": 28.0,
+            "customs_processing_hours": 18.0,
+            "scheduled_delivery": "2026-03-28T12:00:00",
+        }
+        for i in range(100)
+    ]
+    results = engine.predict_batch(batch)
+    assert len(results) == 100
+    assert results[0]["shipment_id"] == "BULK-0000"
+    assert "predicted_delay_hours" in results[0]
+    assert results[99]["shipment_id"] == "BULK-0099"

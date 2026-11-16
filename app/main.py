@@ -21,6 +21,9 @@ from fastapi import FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.schemas import (
+    BatchPredictionItem,
+    BatchPredictionRequest,
+    BatchPredictionResponse,
     FeatureImportanceItem,
     HealthResponse,
     ModelMetricsResponse,
@@ -129,6 +132,36 @@ def predict_eta(payload: ShipmentInput):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Inference error: {str(e)}",
+        )
+
+
+@app.post(
+    "/predict/batch",
+    response_model=BatchPredictionResponse,
+    tags=["Prediction & Explainability"],
+    summary="High-throughput batch ETA & delay prediction (thousands of shipments)",
+)
+def predict_batch_eta(payload: BatchPredictionRequest):
+    """
+    High-throughput vectorized batch prediction:
+    Accepts up to 5,000 shipments and processes them using vectorized C-level pipeline inference.
+    """
+    import time
+    service = get_shipment_service()
+    try:
+        t0 = time.time()
+        raw_list = [item.model_dump() for item in payload.shipments]
+        predictions = service.predict_batch(raw_list)
+        elapsed_ms = round((time.time() - t0) * 1000.0, 2)
+        return BatchPredictionResponse(
+            total_processed=len(predictions),
+            processing_time_ms=elapsed_ms,
+            predictions=predictions,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Batch inference error: {str(e)}",
         )
 
 

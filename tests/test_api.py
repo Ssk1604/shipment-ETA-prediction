@@ -68,6 +68,36 @@ def test_post_predict_valid():
     assert "explanation" in data
 
 
+def test_post_predict_batch():
+    batch_payload = {
+        "shipments": [
+            {
+                "shipment_id": f"BATCH-{i:03d}",
+                "route": "ASIA-EUR-01",
+                "origin": "CNSHA",
+                "destination": "NLRTM",
+                "distance_km": 19500.0,
+                "carrier_rating": 0.85,
+                "scheduled_departure": "2026-04-01T08:00:00",
+                "departure_delay_hours": float(i * 2),
+                "port_congestion": 0.4,
+                "weather_severity": 2.5,
+                "port_processing_hours": 30.0,
+                "customs_processing_hours": 18.0,
+                "scheduled_delivery": "2026-04-28T12:00:00",
+            }
+            for i in range(5)
+        ]
+    }
+    response = client.post("/predict/batch", json=batch_payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total_processed"] == 5
+    assert len(data["predictions"]) == 5
+    assert "processing_time_ms" in data
+    assert data["predictions"][0]["risk_tier"] in ["LOW", "MEDIUM", "HIGH"]
+
+
 def test_post_predict_invalid_validation():
     payload = {
         "shipment_id": "API-TEST-INVALID",

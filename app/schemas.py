@@ -54,7 +54,27 @@ class PredictionResponse(BaseModel):
     delay_probability: float
     is_delayed_24h: int
     risk_tier: str
-    explanation: PredictionExplanation
+    explanation: Optional[PredictionExplanation] = None
+
+
+class BatchPredictionItem(BaseModel):
+    shipment_id: str
+    predicted_delay_hours: float
+    predicted_eta: Optional[str]
+    scheduled_delivery: Optional[str]
+    delay_probability: float
+    is_delayed_24h: int
+    risk_tier: str
+
+
+class BatchPredictionRequest(BaseModel):
+    shipments: List[ShipmentInput] = Field(..., min_length=1, max_length=5000)
+
+
+class BatchPredictionResponse(BaseModel):
+    total_processed: int
+    processing_time_ms: float
+    predictions: List[BatchPredictionItem]
 
 
 class SimulationRequest(BaseModel):
