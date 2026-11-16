@@ -20,3 +20,7 @@ Thumbs.db
 
 # Streamlit Cache
 .streamlit/
+
+# Generated Reports
+*.pdf
+
