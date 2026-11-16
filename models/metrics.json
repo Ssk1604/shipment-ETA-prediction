@@ -1,74 +1,74 @@
 {
   "baseline_regression": {
     "model": "Baseline (Historical Mean)",
-    "mae_hours": 23.693,
-    "rmse_hours": 29.558,
-    "r2_score": -0.0058
+    "mae_hours": 23.809,
+    "rmse_hours": 30.097,
+    "r2_score": -0.0004
   },
   "model_a_regression": {
     "model": "RandomForestRegressor",
-    "mae_hours": 9.618,
-    "rmse_hours": 18.936,
-    "r2_score": 0.5872
+    "mae_hours": 6.891,
+    "rmse_hours": 9.715,
+    "r2_score": 0.8958
   },
   "model_b_classification": {
     "model": "RandomForestClassifier",
-    "accuracy": 0.92,
-    "precision": 1.0,
-    "recall": 0.8095,
-    "f1_score": 0.8947,
-    "roc_auc": 0.9787,
+    "accuracy": 0.88,
+    "precision": 0.7619,
+    "recall": 0.9412,
+    "f1_score": 0.8421,
+    "roc_auc": 0.9162,
     "confusion_matrix": [
       [
-        29,
-        0
+        28,
+        5
       ],
       [
-        4,
-        17
+        1,
+        16
       ]
     ]
   },
   "top_features": [
     {
       "feature": "port_arrival_delay_hours",
-      "importance": 0.4314
+      "importance": 0.4459
     },
     {
       "feature": "customs_processing_hours",
-      "importance": 0.296
+      "importance": 0.3549
     },
     {
       "feature": "port_processing_hours",
-      "importance": 0.0999
+      "importance": 0.0736
+    },
+    {
+      "feature": "congestion_x_missed_slot",
+      "importance": 0.0513
     },
     {
       "feature": "congestion_processing_interaction",
-      "importance": 0.0564
-    },
-    {
-      "feature": "departure_weather_composite",
-      "importance": 0.0523
-    },
-    {
-      "feature": "departure_delay_hours",
-      "importance": 0.0256
+      "importance": 0.0179
     },
     {
       "feature": "port_congestion",
-      "importance": 0.0143
+      "importance": 0.0088
     },
     {
-      "feature": "carrier_rating",
-      "importance": 0.0076
+      "feature": "departure_weather_composite",
+      "importance": 0.0085
     },
     {
-      "feature": "weather_severity",
-      "importance": 0.0043
+      "feature": "unabsorbed_delay_hours",
+      "importance": 0.0066
     },
     {
-      "feature": "distance_km",
-      "importance": 0.0037
+      "feature": "departure_delay_hours",
+      "importance": 0.005
+    },
+    {
+      "feature": "remaining_buffer_hours",
+      "importance": 0.0046
     }
   ],
   "split_info": {
