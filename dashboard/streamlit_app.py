@@ -19,7 +19,12 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from src.predict import get_inference_engine
-from src.delay_propagation import format_hours_to_hhmm, get_operational_status
+from src.delay_propagation import (
+    format_hours_to_hhmm,
+    get_operational_status,
+    calculate_schedule_buffer_analysis,
+    format_buffer_duration,
+)
 
 
 # Streamlit Page Configuration
@@ -663,6 +668,45 @@ elif nav_choice == "Delay Propagation Engine":
             "<span style='color: #64748b; font-weight: bold;'>■ Grey</span>: On Schedule | "
             "<span style='color: #ea580c; font-weight: bold;'>■ Orange</span>: Disruption Incurred",
             unsafe_allow_html=True,
+        )
+        st.markdown("---")
+
+        # -------------------------------------------------------------
+        # Schedule Buffer Analysis (Capacity & Slack Consumption)
+        # -------------------------------------------------------------
+        buf_analysis = calculate_schedule_buffer_analysis(record.to_dict())
+
+        st.subheader("Schedule Buffer Analysis")
+        st.caption("Commercial absorptive capacity: tracks planned schedule buffer against slack consumed by operational disruptions.")
+
+        b1_col, b2_col, b3_col, b4_col = st.columns(4)
+        with b1_col:
+            with st.container(border=True):
+                st.caption("INITIAL SCHEDULE SLACK")
+                st.markdown(f"## {buf_analysis['initial_slack_display']}")
+                st.caption("Original Available Buffer")
+
+        with b2_col:
+            with st.container(border=True):
+                st.caption("SLACK CONSUMED")
+                st.markdown(f"## {buf_analysis['consumed_slack_display']}")
+                st.caption("Buffer Already Used")
+
+        with b3_col:
+            with st.container(border=True):
+                st.caption("REMAINING BUFFER")
+                st.markdown(f"## {buf_analysis['remaining_slack_display']}")
+                st.caption("Buffer Still Available")
+
+        with b4_col:
+            with st.container(border=True):
+                st.caption("BUFFER UTILIZATION")
+                st.markdown(f"## {buf_analysis['utilization_display']}")
+                st.markdown(f"**{buf_analysis['status_badge']}**")
+
+        st.progress(
+            min(1.0, buf_analysis["buffer_utilization_pct"] / 100.0),
+            text=f"Buffer Consumption: {buf_analysis['utilization_display']} — {buf_analysis['status_desc']}",
         )
         st.markdown("---")
 

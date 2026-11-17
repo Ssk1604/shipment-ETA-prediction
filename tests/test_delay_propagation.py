@@ -11,6 +11,8 @@ from src.delay_propagation import (
     simulate_delay_impact,
     format_hours_to_hhmm,
     get_operational_status,
+    format_buffer_duration,
+    calculate_schedule_buffer_analysis,
 )
 
 
@@ -83,5 +85,60 @@ def test_get_operational_status():
     assert get_operational_status(18.2) == "🟡 Moderate Delay"
     assert get_operational_status(28.0) == "🔴 Critical Delay (≥24h)"
     assert get_operational_status(None) == "⚪ Unknown"
+
+
+def test_format_buffer_duration():
+    assert format_buffer_duration(18.0) == "18h"
+    assert format_buffer_duration(13.8333) == "13h 50m"
+    assert format_buffer_duration(4.1667) == "4h 10m"
+    assert format_buffer_duration(0.0) == "0h 00m"
+    assert format_buffer_duration(None) == "N/A"
+
+
+def test_calculate_schedule_buffer_analysis_illustrative():
+    # Test case matching the exact illustrative example:
+    # 18h Initial buffer, 13h 50m consumed buffer, 4h 10m remaining buffer, 76.9% utilization
+    record = {
+        "departure_delay_hours": 0.57,
+        "weather_severity": 2.5,  # est_ocean = (2.5 - 2.0) * 8.0 = 4.0
+        "port_congestion": 0.5,
+        "port_processing_hours": 30.0,  # est_port = 0.5 * 10.0 = 5.0
+        "customs_processing_hours": 22.0,  # est_cust = 22.0 - 16.0 = 6.0
+        # gross = 0.57 + 4.0 + 5.0 + 6.0 = 15.57h
+        "final_delay_hours": 1.74,  # final delay = 1.74h -> absorbed = 15.57 - 1.74 = 13.83h (13h 50m)
+    }
+    result = calculate_schedule_buffer_analysis(record, initial_buffer_override=18.0)
+
+    assert result["initial_slack_hours"] == 18.0
+    assert result["consumed_slack_hours"] == 13.83
+    assert result["remaining_slack_hours"] == 4.17
+    assert result["buffer_utilization_pct"] == 76.9
+    assert result["initial_slack_display"] == "18h"
+    assert result["consumed_slack_display"] == "13h 50m"
+    assert result["remaining_slack_display"] == "4h 10m"
+    assert result["utilization_display"] == "76.9%"
+    assert result["status_label"] == "Caution"
+
+
+def test_calculate_schedule_buffer_analysis_exhausted():
+    # Massive disruption where gross disruption exceeds initial buffer
+    record = {
+        "departure_delay_hours": 12.0,
+        "weather_severity": 4.0,  # (4-2)*8 = 16.0
+        "port_congestion": 0.8,
+        "port_processing_hours": 40.0,  # 0.8 * 20 = 16.0
+        "customs_processing_hours": 20.0,  # 4.0
+        # gross = 12 + 16 + 16 + 4 = 48h
+        "final_delay_hours": 30.0,  # absorbed = 18h
+    }
+    result = calculate_schedule_buffer_analysis(record, initial_buffer_override=18.0)
+
+    assert result["initial_slack_hours"] == 18.0
+    assert result["consumed_slack_hours"] == 18.0
+    assert result["remaining_slack_hours"] == 0.0
+    assert result["buffer_utilization_pct"] == 100.0
+    assert result["status_label"] == "Exhausted"
+    assert "🔴 Exhausted" in result["status_badge"]
+
 
 
