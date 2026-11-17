@@ -409,8 +409,47 @@ elif nav_choice == "Shipment ETA & Explainability":
 # TAB 3: DELAY PROPAGATION ENGINE
 # -------------------------------------------------------------
 elif nav_choice == "Delay Propagation Engine":
-    st.title("⏳ Multi-Stage Delay Propagation Architecture")
-    st.markdown("Examine how schedule buffers absorb upstream lateness before compounding occurs.")
+    st.markdown("""
+    <div style="
+        background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%);
+        border-radius: 12px;
+        padding: 22px 26px;
+        margin-bottom: 24px;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        box-shadow: 0 4px 14px rgba(30, 27, 75, 0.2);
+    ">
+        <div>
+            <div style="font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 1.2px; color: #a5b4fc; margin-bottom: 4px;">
+                Aiqon Logistics AI • Milestone Accounting
+            </div>
+            <div style="font-size: 1.7rem; font-weight: 700; letter-spacing: -0.5px; line-height: 1.2; margin-bottom: 6px;">
+                Multi-Stage Delay Propagation Architecture
+            </div>
+            <div style="font-size: 0.92rem; color: #c7d2fe; max-width: 820px;">
+                Examine how schedule buffers absorb upstream lateness before compounding occurs, and audit milestone-by-milestone schedule deviations.
+            </div>
+        </div>
+        <div style="text-align: right; min-width: 150px;">
+            <span style="
+                background-color: rgba(165, 180, 252, 0.15);
+                color: #e0e7ff;
+                padding: 6px 14px;
+                border-radius: 20px;
+                font-size: 0.8rem;
+                font-weight: 600;
+                border: 1px solid rgba(165, 180, 252, 0.3);
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+            ">
+                ⏳ Timeline Physics
+            </span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     if not df_shipments.empty:
         selected_id = st.selectbox("Select Shipment for Timeline Walkthrough", df_shipments["shipment_id"].tolist())
@@ -419,20 +458,97 @@ elif nav_choice == "Delay Propagation Engine":
         sched_dep = pd.to_datetime(record["scheduled_departure"])
         act_dep = pd.to_datetime(record["actual_departure"])
         sched_port = pd.to_datetime(record["scheduled_port_arrival"])
-        act_port = pd.to_datetime(record["actual_port_arrival"]) if pd.notnull(record["actual_port_arrival"]) else (act_dep + timedelta(hours=300))
+        act_port = pd.to_datetime(record["actual_port_arrival"]) if pd.notnull(record["actual_port_arrival"]) else None
         sched_del = pd.to_datetime(record["scheduled_delivery"])
         act_del = pd.to_datetime(record["actual_delivery"])
 
-        # Timeline comparison
+        dep_delay_h = float(record["departure_delay_hours"])
+        port_delay_h = float(record["port_arrival_delay_hours"]) if pd.notnull(record["port_arrival_delay_hours"]) else None
+        final_delay_h = float(record["final_delay_hours"])
+
+        def get_milestone_status(delay_val: Optional[float]) -> str:
+            if delay_val is None:
+                return "In Transit"
+            if delay_val < -0.1:
+                return "Early"
+            elif delay_val <= 0.1:
+                return "On Schedule"
+            return "Late"
+
+        def fmt_dt(dt_val: Optional[pd.Timestamp]) -> str:
+            if dt_val is None or pd.isna(dt_val):
+                return "N/A"
+            return dt_val.strftime("%b %d, %H:%M")
+
+        # Milestone 1: Origin Departure
+        status_dep = get_milestone_status(dep_delay_h)
+        inh_dep_h = 0.0
+        change_dep_h = dep_delay_h
+
+        # Milestone 2: Port Arrival
+        status_port = get_milestone_status(port_delay_h)
+        inh_port_h = dep_delay_h
+        change_port_h = (port_delay_h - dep_delay_h) if port_delay_h is not None else None
+
+        # Milestone 3: Final Delivery
+        status_final = get_milestone_status(final_delay_h)
+        inh_final_h = port_delay_h if port_delay_h is not None else dep_delay_h
+        change_final_h = final_delay_h - inh_final_h
+
+        col_hdr, col_toggle = st.columns([3, 1])
+        with col_hdr:
+            st.subheader("Checkpoint Milestones")
+            st.caption("Milestone-by-milestone schedule deviations across the shipment journey.")
+        with col_toggle:
+            show_tech_milestones = st.toggle("🔍 Show Raw Technical Decimals", value=False, help="Reveals underlying decimal hours for schedule deviations.")
+
         timeline_data = [
-            {"Stage": "1. Origin Departure", "Scheduled": str(sched_dep)[:16].replace("T", " "), "Actual": str(act_dep)[:16].replace("T", " "), "Delay (HH:MM)": format_hours_to_hhmm(record["departure_delay_hours"], show_early=False), "Decimal (h)": f"{record['departure_delay_hours']:.2f}h"},
-            {"Stage": "2. Port Arrival", "Scheduled": str(sched_port)[:16].replace("T", " "), "Actual": str(act_port)[:16].replace("T", " "), "Delay (HH:MM)": format_hours_to_hhmm(record["port_arrival_delay_hours"], show_early=False) if pd.notnull(record["port_arrival_delay_hours"]) else "N/A", "Decimal (h)": f"{record['port_arrival_delay_hours']:.2f}h" if pd.notnull(record["port_arrival_delay_hours"]) else "N/A"},
-            {"Stage": "3. Final Consignee Delivery", "Scheduled": str(sched_del)[:16].replace("T", " "), "Actual": str(act_del)[:16].replace("T", " "), "Delay (HH:MM)": format_hours_to_hhmm(record["final_delay_hours"]), "Decimal (h)": f"{record['final_delay_hours']:.2f}h"},
+            {
+                "Checkpoint": "1. Origin Departure",
+                "Scheduled": fmt_dt(sched_dep),
+                "Actual": fmt_dt(act_dep),
+                "Delay": format_hours_to_hhmm(dep_delay_h, show_early=False),
+                "Status": status_dep,
+                "Previous-Stage Delay": format_hours_to_hhmm(inh_dep_h, show_early=False),
+                "Delay Change": format_hours_to_hhmm(change_dep_h, show_early=False),
+                "Raw Delay (h)": f"{dep_delay_h:+.2f}h",
+                "Raw Inherited (h)": f"{inh_dep_h:+.2f}h",
+                "Raw Change (h)": f"{change_dep_h:+.2f}h",
+            },
+            {
+                "Checkpoint": "2. Port Arrival",
+                "Scheduled": fmt_dt(sched_port),
+                "Actual": fmt_dt(act_port) if act_port is not None else "Simulated / In Transit",
+                "Delay": format_hours_to_hhmm(port_delay_h, show_early=False) if port_delay_h is not None else "N/A",
+                "Status": status_port,
+                "Previous-Stage Delay": format_hours_to_hhmm(inh_port_h, show_early=False),
+                "Delay Change": format_hours_to_hhmm(change_port_h, show_early=False) if change_port_h is not None else "N/A",
+                "Raw Delay (h)": f"{port_delay_h:+.2f}h" if port_delay_h is not None else "N/A",
+                "Raw Inherited (h)": f"{inh_port_h:+.2f}h",
+                "Raw Change (h)": f"{change_port_h:+.2f}h" if change_port_h is not None else "N/A",
+            },
+            {
+                "Checkpoint": "3. Final Delivery",
+                "Scheduled": fmt_dt(sched_del),
+                "Actual": fmt_dt(act_del),
+                "Delay": format_hours_to_hhmm(final_delay_h, show_early=False),
+                "Status": status_final,
+                "Previous-Stage Delay": format_hours_to_hhmm(inh_final_h, show_early=False),
+                "Delay Change": format_hours_to_hhmm(change_final_h, show_early=False),
+                "Raw Delay (h)": f"{final_delay_h:+.2f}h",
+                "Raw Inherited (h)": f"{inh_final_h:+.2f}h",
+                "Raw Change (h)": f"{change_final_h:+.2f}h",
+            },
         ]
         df_time = pd.DataFrame(timeline_data)
 
-        st.subheader("Checkpoint Milestones")
-        st.dataframe(df_time, use_container_width=True)
+        base_cols = ["Checkpoint", "Scheduled", "Actual", "Delay", "Status", "Previous-Stage Delay", "Delay Change"]
+        if show_tech_milestones:
+            base_cols.extend(["Raw Delay (h)", "Raw Inherited (h)", "Raw Change (h)"])
+
+        st.dataframe(df_time[base_cols], use_container_width=True)
+
+        st.info("💡 **Operational Note**: The **Delay Change** represents changes in schedule deviation between consecutive checkpoints (not independently established causes). Negative changes indicate delay absorbed by schedule slack, while positive changes indicate stage disruptions.")
 
         # Propagation math breakdown
         st.subheader("Mathematical Propagation Principles")
