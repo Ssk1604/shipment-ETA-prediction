@@ -328,11 +328,11 @@ elif nav_choice == "Shipment ETA & Explainability":
             for s in buffer_stages:
                 hours = abs(s["delay_contribution_hours"])
                 st.markdown(
-                    f"- **{s['stage']}**: `-{format_hours_to_hhmm(hours, show_early=False)}` _(-{hours:.2f}h)_  \n"
+                    f"- **{s['stage']}**: `{format_hours_to_hhmm(-hours, show_early=False)}` _(-{hours:.2f}h)_  \n"
                     f"  <span style='color: #28a745; font-size: 0.85rem;'>{s['description']}</span>",
                     unsafe_allow_html=True,
                 )
-            st.markdown(f"**Total Buffer Absorbed:** `-{format_hours_to_hhmm(absorbed_delay, show_early=False)}` _(-{absorbed_delay:.2f}h)_")
+            st.markdown(f"**Total Buffer Absorbed:** `{format_hours_to_hhmm(-absorbed_delay, show_early=False)}` _(-{absorbed_delay:.2f}h)_")
 
             st.markdown("---")
             st.markdown(
