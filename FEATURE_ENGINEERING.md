@@ -1,6 +1,21 @@
-# Advanced Feature Engineering Specification
+# ⚙️ Advanced Feature Engineering Specification
 
-This document provides a technical specification of the four advanced feature engineering techniques implemented in the **Aiqon Shipment ETA Prediction & Delay Propagation System**.
+[![Back to README](https://img.shields.io/badge/←%20Back%20to-Main%20README-blue.svg)](README.md)
+[![Pipeline](https://img.shields.io/badge/Pipeline-Scikit--Learn%20ColumnTransformer-orange.svg)](src/feature_engineering.py)
+[![Leakage](https://img.shields.io/badge/Data%20Leakage-Strictly%20Sequestered-success.svg)](README.md#-system-architecture)
+
+This document provides a technical specification and mathematical derivation of the advanced domain feature engineering techniques implemented in the **Aiqon Shipment ETA Prediction & Delay Propagation System**.
+
+---
+
+## 📑 Contents
+
+1. [Feature 1: Congestion × Missed Slot Penalty (`congestion_x_missed_slot`)](#1-feature-1-congestion--missed-slot-penalty-congestion_x_missed_slot)
+2. [Feature 2: Schedule Slack / Buffer Features (`remaining_buffer_hours` & `unabsorbed_delay_hours`)](#2-feature-2-schedule-slack--buffer-features-remaining_buffer_hours--unabsorbed_delay_hours)
+3. [Feature 3: Missing Telemetry Simulation & Imputation (`is_port_arrival_missing`)](#3-feature-3-missing-telemetry-simulation--imputation-is_port_arrival_missing)
+4. [Feature 4: Route Variability Encoding & Distance Interactions (`route_encoded` & `weather_x_distance`)](#4-feature-4-route-variability-encoding--distance-interactions)
+5. [Complete Model Input Feature Inventory (17 Numerical + 3 Categorical)](#5-complete-model-input-feature-inventory)
+6. [Empirical Impact: Ablation Benchmark Comparison](#6-empirical-impact-model-benchmark-comparison)
 
 ---
 

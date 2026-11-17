@@ -15,6 +15,7 @@ An enterprise-grade Machine Learning and Delay Propagation platform for internat
 - [📌 Executive Overview & Business Problem](#-executive-overview--business-problem)
   - [The Core Challenge: Naive Summation vs. Schedule Slack](#the-core-challenge-naive-summation-vs-schedule-slack)
 - [🏛️ System Architecture](#️-system-architecture)
+- [⚙️ Advanced Feature Engineering (Specification Doc)](FEATURE_ENGINEERING.md)
 - [🔬 Mathematical Delay Propagation Methodology](#-mathematical-delay-propagation-methodology)
   - [1. Operational Milestones ($k \in \{0, 1, 2, 3, 4\}$)](#1-operational-milestones-k-in-0-1-2-3-4)
   - [2. Mathematical Formulations & Buffer Dynamics](#2-mathematical-formulations--buffer-dynamics)
@@ -86,6 +87,9 @@ flowchart TD
         Service --> UI["Streamlit Dashboard (dashboard/streamlit_app.py)"]
     end
 ```
+
+> [!NOTE]
+> For complete mathematical formulations, business derivations, empirical ablation studies, and handling of missing telemetry across all four advanced domain features, consult the dedicated [FEATURE_ENGINEERING.md](FEATURE_ENGINEERING.md) technical specification.
 
 ---
 
@@ -406,6 +410,7 @@ aiqon-shipment-eta/
 │       ├── confusion_matrix.png
 │       └── feature_importance.png
 ├── requirements.txt                    # Pinned Python package dependencies
+├── FEATURE_ENGINEERING.md              # Advanced feature engineering specification & proofs
 └── README.md                           # Comprehensive documentation
 ```
 
