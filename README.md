@@ -10,6 +10,29 @@ An enterprise-grade Machine Learning and Delay Propagation platform for internat
 
 ---
 
+## 📑 Table of Contents
+
+- [📌 Executive Overview & Business Problem](#-executive-overview--business-problem)
+  - [The Core Challenge: Naive Summation vs. Schedule Slack](#the-core-challenge-naive-summation-vs-schedule-slack)
+- [🏛️ System Architecture](#️-system-architecture)
+- [🔬 Mathematical Delay Propagation Methodology](#-mathematical-delay-propagation-methodology)
+  - [1. Operational Milestones ($k \in \{0, 1, 2, 3, 4\}$)](#1-operational-milestones-k-in-0-1-2-3-4)
+  - [2. Mathematical Formulations & Buffer Dynamics](#2-mathematical-formulations--buffer-dynamics)
+  - [3. Non-Linear Bottleneck Compounding](#3-non-linear-bottleneck-compounding)
+  - [4. Step-by-Step Numerical Walkthrough](#4-step-by-step-numerical-walkthrough)
+- [📊 Dataset Schema](#-dataset-schema)
+- [📈 Model Performance & Evaluation Results](#-model-performance--evaluation-results)
+  - [Regression Benchmark (Final Delay in Hours)](#regression-benchmark-final-delay-in-hours)
+  - [Classification Benchmark (Delay Risk $\ge 24$ Hours)](#classification-benchmark-delay-risk-ge-24-hours)
+  - [Top 5 Global Predictive Features (Gini Importance)](#top-5-global-predictive-features-gini-importance)
+- [🚀 Quick Start Guide (Windows PowerShell)](#-quick-start-guide-windows-powershell)
+- [⚡ Large-Scale High-Throughput Architecture](#-large-scale-high-throughput-architecture)
+- [📡 REST API Examples](#-rest-api-examples)
+- [🗂️ Project Directory Structure](#️-project-directory-structure)
+- [⚠️ Known Limitations & Future Improvements](#️-known-limitations--future-improvements)
+
+---
+
 ## 📌 Executive Overview & Business Problem
 
 In global supply chains, international maritime shipments transit through consecutive operational milestones:
@@ -68,19 +91,78 @@ flowchart TD
 
 ## 🔬 Mathematical Delay Propagation Methodology
 
-Let operational milestones be indexed by $k \in \{0, 1, 2, 3, 4\}$.
+### 1. Operational Milestones ($k \in \{0, 1, 2, 3, 4\}$)
 
-1. **Commercial Schedule Slack**:
-   $$\text{Slack}_{k-1 \to k} = \max\left(0, \;\Delta T^{\text{sched}}_{k-1 \to k} - \tau^{\text{nom}}_{k-1 \to k}\right)$$
-   Where $\Delta T^{\text{sched}}$ is the timetable duration and $\tau^{\text{nom}}$ is the nominal transit/processing time.
+In multi-modal international container transport, a voyage is partitioned into five sequential, physically linked operational milestones:
 
-2. **Upstream Delay Absorption**:
-   When an inherited delay $D_{k-1} > 0$ enters stage $k$:
-   $$\text{AbsorbedDelay}_k = \min\left(D_{k-1}, \;\text{Slack}_{k-1 \to k}\right)$$
+| Milestone Index ($k$) | Operational Checkpoint | Scheduled Timestamp ($T_k^{\text{sched}}$) | Physical Logistics Activity | Stage Disruption Factors ($\delta_k$) |
+| :---: | :--- | :---: | :--- | :--- |
+| **$k = 0$** | **Origin Terminal Departure** | $T_0^{\text{sched}}$ | Container gate-in, export customs, and vessel stowage | Terminal yard congestion, crane breakdown, late vessel docking |
+| **$k = 1$** | **Ocean Transit & Voyage** | $T_1^{\text{sched}}$ | Deep-sea maritime navigation along trade lanes | Storm deviation, adverse sea states, slow-steaming bunker optimization |
+| **$k = 2$** | **Destination Port Arrival & Berthing** | $T_2^{\text{sched}}$ | Pilotage, outer anchorage queuing, berth offloading | Berth unavailability, tug shortages, terminal container dwell |
+| **$k = 3$** | **Import Customs Clearance** | $T_3^{\text{sched}}$ | Manifest verification, tariff declaration, physical inspection | Documentation discrepancy holds, random x-ray scans, agency backlogs |
+| **$k = 4$** | **Hinterland Drayage & Delivery** | $T_4^{\text{sched}}$ | Last-mile road trucking or rail intermodal transport | Drayage chassis shortage, highway congestion, consignee warehouse dwell |
 
-3. **Stage Recurrence & Compounding**:
-   $$\text{Net Delay}_k = D_{k-1} - \text{AbsorbedDelay}_k + \delta_k$$
-   Where $\delta_k$ is the local disruption added at stage $k$ (e.g. weather slow-steaming or port anchorage wait).
+---
+
+### 2. Mathematical Formulations & Buffer Dynamics
+
+Let $D_k$ denote the **cumulative net schedule delay** (in hours) at milestone $k$, where:
+- $D_k > 0 \implies$ The shipment is running **behind schedule** (delayed).
+- $D_k = 0 \implies$ The shipment is running **on time**.
+- $D_k < 0 \implies$ The shipment is running **ahead of schedule** (early).
+
+#### A. Initial Departure Delay ($k = 0$)
+The initial delay at origin departure is the direct deviation between the actual departure timestamp $T_0^{\text{act}}$ and timetable departure $T_0^{\text{sched}}$:
+$$D_0 = \max\left(0, \; T_0^{\text{act}} - T_0^{\text{sched}}\right)$$
+
+#### B. Commercial Schedule Slack ($\text{Slack}_{k-1 \to k}$)
+Commercial logistics operators insert deliberate timetable buffers between consecutive milestones to absorb operational friction:
+$$\Delta T_{k-1 \to k}^{\text{sched}} = T_k^{\text{sched}} - T_{k-1}^{\text{sched}}$$
+$$\text{Slack}_{k-1 \to k} = \max\left(0, \;\Delta T_{k-1 \to k}^{\text{sched}} - \tau_{k-1 \to k}^{\text{nom}}\right)$$
+Where $\tau_{k-1 \to k}^{\text{nom}}$ is the nominal, disruption-free operational duration (e.g. calculated as $\frac{\text{Distance}}{v_{\text{nom}}}$ for ocean sailing).
+
+#### C. Upstream Delay Absorption ($\text{AbsorbedDelay}_k$)
+When an inherited delay $D_{k-1} > 0$ enters stage $k$, the stage timetable buffer absorbs part or all of the delay:
+$$\text{AbsorbedDelay}_k = \min\left(D_{k-1}, \;\text{Slack}_{k-1 \to k}\right)$$
+
+#### D. Net Delay Recurrence Relation
+The net delay emerging from stage $k$ combines the unabsorbed upstream delay with newly incurred stage-level disruptions $\delta_k$:
+$$D_k = \max\left(0, \; D_{k-1} - \text{AbsorbedDelay}_k + \delta_k\right)$$
+
+#### E. Final Estimated Time of Arrival (ETA)
+The dynamic arrival timestamp at destination ($k=4$) is updated in real time as:
+$$\text{ETA} = T_4^{\text{sched}} + D_4$$
+
+---
+
+### 3. Non-Linear Bottleneck Compounding
+
+In physical logistics, delays do not simply add linearly. High congestion causes **berth window expiration**, leading to non-linear cascading penalties:
+- When a vessel arrives within its agreed port time window ($D_1 \le \text{BerthWindow}$), berthing delay scales linearly with terminal congestion $\rho \in [0, 1]$:
+  $$\delta_2 = \tau_{\text{port}}^{\text{base}} \times (1 + \rho)$$
+- When cumulative arrival delay exceeds the reserved berth window ($D_1 > \text{BerthWindow}$), the vessel forfeits its priority slot and must drop anchor in outer anchorage, inducing an exponential queue penalty:
+  $$\delta_2^{\text{compounded}} = \delta_2 + \alpha \times e^{\beta \times \rho} \quad \text{for } \rho \ge 0.70$$
+This non-linear reality is modeled directly in `src/delay_propagation.py` and captured by Model A's interaction feature `congestion_x_missed_slot`.
+
+---
+
+### 4. Step-by-Step Numerical Walkthrough
+
+The table below contrasts our **Slack-Aware Delay Propagation** against a naive additive model ($\sum \delta_k$) for a transpacific voyage:
+
+| Milestone Leg | Inherited Delay ($D_{k-1}$) | Timetable Slack ($\text{Slack}_k$) | Delay Absorbed | Stage Disruption ($\delta_k$) | Cumulative Delay ($D_k$) | Naive Summation ($\sum \delta$) | Error of Naive Model |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **$k=0$: Departure** | — | — | — | **+8.0 h** (late gate-in) | **8.0 h** | 8.0 h | 0.0 h |
+| **$k=1$: Ocean Transit** | 8.0 h | **12.0 h** (buffer) | **-8.0 h** (full absorption) | **+4.0 h** (mild storm) | **4.0 h** | 12.0 h | +8.0 h (overstated) |
+| **$k=2$: Port Berthing** | 4.0 h | **4.0 h** (port buffer) | **-4.0 h** (absorbed) | **+14.0 h** (anchorage queue)| **14.0 h** | 26.0 h | +12.0 h (overstated) |
+| **$k=3$: Customs Clearance**| 14.0 h | **6.0 h** (customs buffer)| **-6.0 h** (absorbed) | **+2.0 h** (standard scan) | **10.0 h** | 28.0 h | +18.0 h (overstated) |
+| **$k=4$: Hinterland Drayage**| 10.0 h | **2.0 h** (drayage buffer)| **-2.0 h** (absorbed) | **+1.5 h** (traffic jam) | **9.5 h** | 29.5 h | **+20.0 h (overstated!)**|
+
+**Result**:
+- **Naive Summation** predicts a **29.5 hour delay** (triggering an unnecessary Critical SLA panic alarm).
+- **Slack-Aware Delay Propagation** reveals the real delay is only **9.5 hours** (commercial timetable absorbed 20.0 hours across the journey).
+- This demonstrates why naive addition fails in enterprise supply chains and why our dual physics/ML architecture is vital.
 
 ---
 
