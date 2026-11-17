@@ -285,7 +285,7 @@ elif nav_choice == "Shipment ETA & Explainability":
             gross_delay = sum(s["delay_contribution_hours"] for s in delay_stages)
             absorbed_delay = abs(sum(s["delay_contribution_hours"] for s in buffer_stages))
 
-            st.markdown("##### 🚨 Newly Introduced Stage Delays")
+            st.markdown("##### ⏱️ Stage-Level Delays Incurred (Gross)")
             for s in delay_stages:
                 hours = s["delay_contribution_hours"]
                 st.markdown(
