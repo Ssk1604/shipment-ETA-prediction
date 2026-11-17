@@ -146,7 +146,7 @@ if nav_choice == "Fleet Overview":
         df_registry = df_shipments.copy()
         df_registry["departure_delay_display"] = df_registry["departure_delay_hours"].apply(lambda x: format_hours_to_hhmm(x, show_early=False))
         df_registry["congestion_display"] = (df_registry["port_congestion"] * 100).round().astype(int).astype(str) + "%"
-        df_registry["weather_display"] = df_registry["weather_severity"].apply(lambda x: f"{x:.2f} / 5")
+        df_registry["weather_display"] = df_registry["weather_severity"].apply(lambda x: f"{x:.2f}")
         df_registry["final_delay_display"] = df_registry["final_delay_hours"].apply(format_hours_to_hhmm)
         df_registry["operational_status"] = df_registry["final_delay_hours"].apply(get_operational_status)
 
@@ -164,8 +164,8 @@ if nav_choice == "Fleet Overview":
             "distance_km": "Distance (km)",
             "departure_delay_display": "Departure Delay",
             "congestion_display": "Congestion",
-            "weather_display": "Weather",
-            "final_delay_display": "Final Delay",
+            "weather_display": "Weather (/5)",
+            "final_delay_display": "Actual Final Delay",
             "operational_status": "Status",
         }
 
@@ -173,7 +173,7 @@ if nav_choice == "Fleet Overview":
             display_cols.extend(["departure_delay_hours", "final_delay_hours", "port_congestion", "weather_severity", "is_delayed_24h"])
             rename_dict.update({
                 "departure_delay_hours": "Dep Delay (h)",
-                "final_delay_hours": "Raw Final Delay (h)",
+                "final_delay_hours": "Raw Actual Delay (h)",
                 "port_congestion": "Raw Congestion (0-1)",
                 "weather_severity": "Raw Weather (1-5)",
                 "is_delayed_24h": "Delayed ≥24h Flag"
