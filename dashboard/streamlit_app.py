@@ -180,7 +180,7 @@ if nav_choice == "Fleet Overview":
             )
             fig_box.add_hline(y=24.0, line_dash="dash", line_color="red", annotation_text="24h SLA Threshold")
             fig_box.update_layout(showlegend=False, height=420)
-            st.plotly_chart(fig_box, use_container_width=True)
+            st.plotly_chart(fig_box, width="stretch")
 
         with col_right:
             st.subheader("Risk Segmentation")
@@ -196,7 +196,7 @@ if nav_choice == "Fleet Overview":
                 marker=dict(colors=["#2ca02c", "#ff7f0e", "#d62728"]),
             )])
             fig_donut.update_layout(height=420, margin=dict(t=30, b=10, l=10, r=10))
-            st.plotly_chart(fig_donut, use_container_width=True)
+            st.plotly_chart(fig_donut, width="stretch")
 
         st.subheader("Active Shipment Registry")
         st.caption("Operational tracking table for fleet administrators. Metrics and delays are formatted for rapid dispatch decisions.")
@@ -243,7 +243,7 @@ if nav_choice == "Fleet Overview":
 
         st.dataframe(
             df_registry[display_cols].rename(columns=rename_dict),
-            use_container_width=True,
+            width="stretch",
             height=320,
         )
 
@@ -346,7 +346,7 @@ elif nav_choice == "Shipment ETA & Explainability":
                 height=450,
                 yaxis_title="Hours",
             )
-            st.plotly_chart(fig_wf, use_container_width=True)
+            st.plotly_chart(fig_wf, width="stretch")
 
         with col_info:
             st.subheader("Attribution Breakdown Details")
@@ -502,6 +502,59 @@ elif nav_choice == "Delay Propagation Engine":
         st.subheader("Visual Delay Propagation Journey Track")
         st.caption("Graphical milestone trajectory. Downward slopes indicate schedule buffer absorption; upward spikes reveal compounding bottlenecks.")
 
+        # 1. Milestone 1: Origin Departure
+        if dep_delay_h < -0.1:
+            c1, lbl1 = "#16a34a", f"Early ({format_hours_to_hhmm(dep_delay_h, show_early=False)})"
+        elif abs(dep_delay_h) <= 0.1:
+            c1, lbl1 = "#64748b", "On Schedule (0m)"
+        else:
+            c1, lbl1 = "#dc2626", f"Late ({format_hours_to_hhmm(dep_delay_h, show_early=False)})"
+
+        # 2. Milestone 2: Ocean Transit
+        dist_km = float(record.get("distance_km", 0.0) or 0.0)
+        weather_val = float(record.get("weather_severity", 2.0) or 2.0)
+        if change_port_h is not None:
+            if change_port_h > 2.0:
+                c2, lbl2 = "#ea580c", f"Disruption (+{change_port_h:.1f}h)"
+            elif change_port_h < -1.0:
+                c2, lbl2 = "#16a34a", f"Buffer Absorbed ({change_port_h:.1f}h)"
+            else:
+                c2, lbl2 = "#64748b", "Nominal Sailing"
+        else:
+            c2, lbl2 = "#64748b", "In Transit"
+
+        # 3. Milestone 3: Port Arrival
+        if act_port is None:
+            c3, lbl3 = "#ea580c", "Telemetry Gap / Imputed"
+        elif port_delay_h is not None:
+            if port_delay_h < -0.1:
+                c3, lbl3 = "#16a34a", f"Early ({format_hours_to_hhmm(port_delay_h, show_early=False)})"
+            elif abs(port_delay_h) <= 0.1:
+                c3, lbl3 = "#64748b", "On Schedule (0m)"
+            else:
+                c3, lbl3 = "#dc2626", f"Late ({format_hours_to_hhmm(port_delay_h, show_early=False)})"
+        else:
+            c3, lbl3 = "#64748b", "In Transit"
+
+        # 4. Milestone 4: Port & Customs Dwell
+        port_proc_h = float(record.get("port_processing_hours", 24.0) or 24.0)
+        cust_proc_h = float(record.get("customs_processing_hours", 16.0) or 16.0)
+        port_cong_pct = float(record.get("port_congestion", 0.3) or 0.3) * 100.0
+        if change_final_h > 2.0:
+            c4, lbl4 = "#ea580c", f"Disruption (+{change_final_h:.1f}h)"
+        elif change_final_h < -1.0:
+            c4, lbl4 = "#16a34a", f"Buffer Absorbed ({change_final_h:.1f}h)"
+        else:
+            c4, lbl4 = "#64748b", "Nominal Clearance"
+
+        # 5. Milestone 5: Final Consignee Delivery
+        if final_delay_h < -0.1:
+            c5, lbl5 = "#16a34a", f"Early ({format_hours_to_hhmm(final_delay_h, show_early=False)})"
+        elif abs(final_delay_h) <= 0.1:
+            c5, lbl5 = "#64748b", "On Schedule (0m)"
+        else:
+            c5, lbl5 = "#dc2626", f"Late ({format_hours_to_hhmm(final_delay_h, show_early=False)})"
+
         # Trajectory delay values
         ocean_proj_delay = dep_delay_h + (change_port_h if change_port_h is not None else 0.0)
         port_arr_delay = port_delay_h if port_delay_h is not None else ocean_proj_delay
@@ -563,7 +616,7 @@ elif nav_choice == "Delay Propagation Engine":
             margin=dict(t=40, b=20, l=40, r=40),
             yaxis_title="Schedule Deviation (Hours)",
         )
-        st.plotly_chart(fig_track, use_container_width=True)
+        st.plotly_chart(fig_track, width="stretch")
 
         # 5 Native Milestone Stepper Cards (Fully Dark/Light Mode Compatible)
         c1_col, c2_col, c3_col, c4_col, c5_col = st.columns(5)
@@ -664,7 +717,7 @@ elif nav_choice == "Delay Propagation Engine":
         if show_tech_milestones:
             base_cols.extend(["Raw Delay (h)", "Raw Inherited (h)", "Raw Change (h)"])
 
-        st.dataframe(df_time[base_cols], use_container_width=True)
+        st.dataframe(df_time[base_cols], width="stretch")
 
         st.info("💡 **Operational Note**: The **Delay Change** represents changes in schedule deviation between consecutive checkpoints (not independently established causes). Negative changes indicate delay absorbed by schedule slack, while positive changes indicate stage disruptions.")
 
@@ -732,7 +785,7 @@ elif nav_choice == "What-If Disruption Simulator":
         ])
         fig_sim.add_hline(y=24.0, line_dash="dash", line_color="orange", annotation_text="24h SLA Threshold")
         fig_sim.update_layout(height=350, yaxis_title="Final Delay Hours")
-        st.plotly_chart(fig_sim, use_container_width=True)
+        st.plotly_chart(fig_sim, width="stretch")
 
 
 # -------------------------------------------------------------
@@ -791,6 +844,6 @@ elif nav_choice == "Model Governance & Metrics":
                 color_continuous_scale="Viridis",
             )
             fig_fi.update_layout(height=420)
-            st.plotly_chart(fig_fi, use_container_width=True)
+            st.plotly_chart(fig_fi, width="stretch")
     else:
         st.warning("Metrics file not found. Ensure training completed.")
