@@ -104,6 +104,10 @@ class SimulationResponse(BaseModel):
     original_eta: Optional[str]
     revised_eta: Optional[str]
     risk_tier: str
+    initial_available_slack_hours: Optional[float] = None
+    remaining_slack_after_hours: Optional[float] = None
+    initial_available_slack_formatted: Optional[str] = None
+    remaining_slack_after_formatted: Optional[str] = None
 
 
 class FeatureImportanceItem(BaseModel):

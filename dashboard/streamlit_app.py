@@ -782,53 +782,184 @@ elif nav_choice == "Delay Propagation Engine":
 # TAB 4: WHAT-IF DISRUPTION SIMULATOR
 # -------------------------------------------------------------
 elif nav_choice == "What-If Disruption Simulator":
-    st.title("🧪 What-If Operational Disruption Sandbox")
-    st.markdown("Simulate operational bottlenecks and quantify downstream ETA delay propagation.")
+    st.markdown("""
+    <div style="
+        background: linear-gradient(135deg, #091e3a 0%, #1e3a5f 50%, #2563eb 100%);
+        border-radius: 12px;
+        padding: 22px 26px;
+        margin-bottom: 24px;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        box-shadow: 0 4px 14px rgba(9, 30, 58, 0.25);
+    ">
+        <div>
+            <div style="font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 1.2px; color: #93c5fd; margin-bottom: 4px;">
+                Aiqon Logistics AI • Scenario Modeling
+            </div>
+            <div style="font-size: 1.7rem; font-weight: 700; letter-spacing: -0.5px; line-height: 1.2; margin-bottom: 6px;">
+                What-If Operational Disruption Sandbox
+            </div>
+            <div style="font-size: 0.92rem; color: #cbd5e1; max-width: 800px;">
+                Inject synthetic bottlenecks at port, customs, or ocean transit to stress-test downstream delay propagation and SLA breach risks.
+            </div>
+        </div>
+        <div style="text-align: right; min-width: 150px;">
+            <span style="
+                background-color: rgba(59, 130, 246, 0.2);
+                color: #93c5fd;
+                padding: 6px 14px;
+                border-radius: 20px;
+                font-size: 0.8rem;
+                font-weight: 600;
+                border: 1px solid rgba(147, 197, 253, 0.35);
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+            ">
+                🧪 Disruption Simulator
+            </span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     col_sim_left, col_sim_right = st.columns([1, 2])
 
     with col_sim_left:
-        st.subheader("Disruption Parameters")
-        sim_shipment_id = st.selectbox("Target Shipment", df_shipments["shipment_id"].tolist())
-        target_record = df_shipments[df_shipments["shipment_id"] == sim_shipment_id].iloc[0]
+        with st.container(border=True):
+            st.subheader("Disruption Parameters")
+            st.caption("Select a shipment and inject hypothetical friction.")
 
-        stage_choice = st.selectbox(
-            "Disruption Injection Point",
-            ["port", "customs", "transit"],
-            format_func=lambda x: {
-                "port": "Port Congestion / Anchorage Wait",
-                "customs": "Customs Inspection / Hold",
-                "transit": "Ocean Storm / Route Detour",
-            }[x],
-        )
+            sim_shipment_id = st.selectbox("Target Shipment", df_shipments["shipment_id"].tolist())
+            target_record = df_shipments[df_shipments["shipment_id"] == sim_shipment_id].iloc[0]
 
-        added_hours = st.slider("Additional Delay Hours Incurred", min_value=0.0, max_value=96.0, value=24.0, step=4.0)
-        run_sim = st.button("Simulate Downstream Propagation", type="primary")
+            stage_choice = st.selectbox(
+                "Disruption Injection Point",
+                ["port", "customs", "transit"],
+                format_func=lambda x: {
+                    "port": "⚓ Port Congestion / Anchorage Wait",
+                    "customs": "🏢 Customs Inspection / Hold",
+                    "transit": "🌊 Ocean Storm / Route Detour",
+                }[x],
+            )
+
+            added_hours = st.slider("Additional Delay Hours Incurred", min_value=0.0, max_value=96.0, value=24.0, step=4.0)
+
+            st.markdown("---")
+            st.markdown(f"**Route:** `{target_record['route']}`")
+            st.markdown(f"**Corridor:** `{target_record['origin']}` $\\to$ `{target_record['destination']}`")
+            st.markdown(f"**Distance:** `{float(target_record.get('distance_km', 0.0) or 0.0):,.0f} km`")
 
     with col_sim_right:
-        st.subheader("Simulation Results")
+        # Calculate realistic initial and available downstream buffer for this shipment
+        buf_before = calculate_schedule_buffer_analysis(target_record.to_dict())
+        available_slack = buf_before["remaining_slack_hours"]
+
         sim_result = engine.simulate_delay_impact_on_shipment(
             target_record.to_dict(),
             disruption_stage=stage_choice,
             additional_hours=added_hours,
+            remaining_slack_override=available_slack,
         )
 
+        base_delay_h = sim_result["original_predicted_delay_hours"]
+        rev_delay_h = sim_result["revised_predicted_delay_hours"]
+        absorbed_h = sim_result["absorbed_by_schedule_slack_hours"]
+        net_slip_h = sim_result["net_effective_delay_increase_hours"]
+        rem_after = sim_result["remaining_slack_after_hours"]
+
+        st.subheader("Simulation Results")
+
         c1, c2, c3 = st.columns(3)
-        c1.metric("Original Predicted Delay", format_hours_to_hhmm(sim_result['original_predicted_delay_hours']), f"{sim_result['original_predicted_delay_hours']:+.2f}h raw")
-        c2.metric("Schedule Slack Absorbed", format_hours_to_hhmm(-sim_result['absorbed_by_schedule_slack_hours'], show_early=False), f"-{sim_result['absorbed_by_schedule_slack_hours']:.2f}h raw")
-        c3.metric("Revised Predicted Delay", format_hours_to_hhmm(sim_result['revised_predicted_delay_hours']), delta=format_hours_to_hhmm(sim_result['net_effective_delay_increase_hours']))
+        c1.metric(
+            "Original Predicted Delay",
+            format_hours_to_hhmm(base_delay_h),
+            f"{base_delay_h:+.2f}h raw",
+        )
+        c2.metric(
+            "Schedule Slack Absorbed",
+            format_hours_to_hhmm(-absorbed_h, show_early=False) if absorbed_h > 0 else "0h 00m",
+            f"-{absorbed_h:.2f}h mitigated" if absorbed_h > 0 else "No slack absorbed",
+            delta_color="normal",
+        )
+        c3.metric(
+            "Revised Predicted Delay",
+            format_hours_to_hhmm(rev_delay_h),
+            delta=f"+{format_buffer_duration(net_slip_h)} slip" if net_slip_h > 0 else "0m slip",
+            delta_color="inverse",  # Delays slipping forward are colored RED
+        )
+
+        # Formatted ETA comparison and risk tier badge
+        def fmt_eta(iso_val: Optional[str]) -> str:
+            if not iso_val:
+                return "N/A"
+            try:
+                dt = pd.to_datetime(iso_val)
+                return dt.strftime("%b %d, %Y • %H:%M")
+            except Exception:
+                return str(iso_val)
+
+        orig_eta_display = fmt_eta(sim_result["original_eta"])
+        rev_eta_display = fmt_eta(sim_result["revised_eta"])
+
+        if rev_delay_h >= 24.0:
+            tier_badge = "🔴 CRITICAL SLA BREACH RISK (≥24h)"
+            tier_msg = "Projected arrival exceeds the 24h SLA penalty threshold. Priority berth booking & expedited drayage dispatch recommended."
+        elif rev_delay_h >= 12.0:
+            tier_badge = "🟡 MODERATE DELAY RISK (12–24h)"
+            tier_msg = "Projected arrival delayed beyond normal window. Closely track anchorage dwell to avoid crossing 24h SLA threshold."
+        else:
+            tier_badge = "🟢 LOW RISK / NOMINAL (<12h)"
+            tier_msg = "Shipment remains on schedule within commercial tolerance window."
+
+        with st.container(border=True):
+            e_col1, e_col2 = st.columns(2)
+            with e_col1:
+                st.markdown(f"**Baseline ETA:** `{orig_eta_display}`")
+                st.markdown(f"**Revised Dynamic ETA:** `{rev_eta_display}`")
+                if net_slip_h > 0:
+                    st.caption(f"⏱️ Schedule slip: **+{format_buffer_duration(net_slip_h)}** forward shift")
+                else:
+                    st.caption("⏱️ Schedule slip: **0m** (completely absorbed by schedule slack)")
+            with e_col2:
+                st.markdown("**Projected Risk Tier:**")
+                st.markdown(f"#### {tier_badge}")
+            st.caption(f"💡 **Recommendation**: {tier_msg}")
+
+        # Schedule Buffer Burn Meter
+        st.subheader("Schedule Buffer Burn Dynamics")
+        b1, b2, b3 = st.columns(3)
+        b1.metric("Available Buffer Before", format_buffer_duration(available_slack), "Planned Downstream Slack")
+        b2.metric("Slack Absorbed", format_buffer_duration(absorbed_h), f"Absorbed {absorbed_h:.1f}h")
+        b3.metric("Remaining Buffer After", format_buffer_duration(rem_after), "🔴 Buffer Exhausted" if rem_after == 0 and available_slack > 0 else "Surplus Slack")
+
+        burn_pct = min(100.0, round((absorbed_h / available_slack) * 100.0, 1)) if available_slack > 0 else (100.0 if added_hours > 0 else 0.0)
+        burn_status = "🔴 All Downstream Slack Depleted — Unmitigated delay propagating directly to consignee" if rem_after == 0 and added_hours > 0 else f"🟢 {format_buffer_duration(rem_after)} Buffer Still Intact"
+        st.progress(burn_pct / 100.0, text=f"Buffer Burn: {burn_pct:.1f}% — {burn_status}")
 
         st.markdown("---")
-        st.markdown(f"**Baseline ETA:** `{sim_result['original_eta']}`")
-        st.markdown(f"**Revised Dynamic ETA:** `{sim_result['revised_eta']}`")
-        st.markdown(f"**Projected Risk Tier:** `{sim_result['risk_tier']}`")
 
-        # Visual comparison bar chart
+        # Comparative Visualization
+        st.subheader("Delay Impact Comparison")
+        bar_colors = ["#3b82f6", "#ef4444" if rev_delay_h >= 24.0 else ("#f59e0b" if rev_delay_h >= 12.0 else "#10b981")]
         fig_sim = go.Figure(data=[
-            go.Bar(name="Delay Incurred", x=["Original Baseline", "With Disruption"], y=[sim_result["original_predicted_delay_hours"], sim_result["revised_predicted_delay_hours"]], marker_color=["#1f77b4", "#d62728"])
+            go.Bar(
+                name="Delay Incurred",
+                x=["Baseline Prediction", "With Injected Disruption"],
+                y=[base_delay_h, rev_delay_h],
+                text=[format_hours_to_hhmm(base_delay_h, show_early=False), format_hours_to_hhmm(rev_delay_h, show_early=False)],
+                textposition="auto",
+                marker=dict(color=bar_colors, line=dict(color="#ffffff", width=1.5)),
+            )
         ])
-        fig_sim.add_hline(y=24.0, line_dash="dash", line_color="orange", annotation_text="24h SLA Threshold")
-        fig_sim.update_layout(height=350, yaxis_title="Final Delay Hours")
+        fig_sim.add_hline(y=24.0, line_dash="dash", line_color="#ef4444", annotation_text="24h SLA Penalty Threshold")
+        fig_sim.add_hline(y=0.0, line_dash="solid", line_color="#10b981", annotation_text="Scheduled Target (0h)")
+        fig_sim.update_layout(
+            height=340,
+            margin=dict(t=30, b=20, l=40, r=40),
+            yaxis_title="Delay Incurred (Hours)",
+        )
         st.plotly_chart(fig_sim, width="stretch")
 
 

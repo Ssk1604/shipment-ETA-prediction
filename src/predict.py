@@ -20,7 +20,11 @@ import joblib
 import numpy as np
 import pandas as pd
 
-from src.delay_propagation import simulate_delay_impact, format_hours_to_hhmm
+from src.delay_propagation import (
+    simulate_delay_impact,
+    format_hours_to_hhmm,
+    format_buffer_duration,
+)
 from src.explainability import explain_shipment_delay
 
 # Explicit Operational Risk Thresholds for Classifier P(Delay >= 24h)
@@ -171,6 +175,7 @@ class ShipmentInferenceEngine:
         shipment_dict: Dict[str, Any],
         disruption_stage: str,
         additional_hours: float,
+        remaining_slack_override: Optional[float] = None,
     ) -> Dict[str, Any]:
         """
         Simulates how an operational bottleneck (e.g. extra port congestion or customs delay)
@@ -181,8 +186,10 @@ class ShipmentInferenceEngine:
         base_delay = base_prediction["predicted_delay_hours"]
 
         # Estimate remaining buffer slack based on route and nominal operations
-        # Typically 6-12 hours of inland / terminal slack remains
-        remaining_slack = 8.0 if disruption_stage in ["port", "customs"] else 0.0
+        if remaining_slack_override is not None:
+            remaining_slack = max(0.0, float(remaining_slack_override))
+        else:
+            remaining_slack = 8.0 if disruption_stage in ["port", "customs"] else 0.0
 
         simulation_math = simulate_delay_impact(
             current_final_delay_hours=base_delay,
@@ -192,6 +199,8 @@ class ShipmentInferenceEngine:
         )
 
         new_delay = simulation_math["new_final_delay_hours"]
+        absorbed_slack = simulation_math["absorbed_by_slack"]
+        rem_after = max(0.0, round(remaining_slack - absorbed_slack, 2))
         
         # Calculate revised ETA
         sched_delivery = shipment_dict.get("scheduled_delivery")
@@ -207,13 +216,17 @@ class ShipmentInferenceEngine:
             "shipment_id": shipment_dict.get("shipment_id", "CUSTOM"),
             "stage_disrupted": disruption_stage,
             "additional_delay_added_hours": additional_hours,
-            "absorbed_by_schedule_slack_hours": simulation_math["absorbed_by_slack"],
+            "absorbed_by_schedule_slack_hours": absorbed_slack,
             "net_effective_delay_increase_hours": simulation_math["delta_impact_hours"],
             "original_predicted_delay_hours": base_delay,
             "revised_predicted_delay_hours": new_delay,
             "original_delay_formatted": format_hours_to_hhmm(base_delay),
             "revised_delay_formatted": format_hours_to_hhmm(new_delay),
-            "slack_absorbed_formatted": format_hours_to_hhmm(-simulation_math["absorbed_by_slack"], show_early=False),
+            "slack_absorbed_formatted": format_hours_to_hhmm(-absorbed_slack, show_early=False),
+            "initial_available_slack_hours": remaining_slack,
+            "remaining_slack_after_hours": rem_after,
+            "initial_available_slack_formatted": format_buffer_duration(remaining_slack),
+            "remaining_slack_after_formatted": format_buffer_duration(rem_after),
             "original_eta": base_prediction["predicted_eta"],
             "revised_eta": revised_eta,
             "risk_tier": "HIGH" if new_delay >= 24.0 else ("MEDIUM" if new_delay >= 12.0 else "LOW"),
