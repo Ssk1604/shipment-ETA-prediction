@@ -257,8 +257,47 @@ if nav_choice == "Fleet Overview":
 # TAB 2: SHIPMENT ETA & EXPLAINABILITY
 # -------------------------------------------------------------
 elif nav_choice == "Shipment ETA & Explainability":
-    st.title("🎯 Single Shipment Prediction & Attribution")
-    st.markdown("Inspect dynamic AI ETA predictions and multi-stage operational delay attribution.")
+    st.markdown("""
+    <div style="
+        background: linear-gradient(135deg, #042f2e 0%, #115e59 50%, #0f766e 100%);
+        border-radius: 12px;
+        padding: 22px 26px;
+        margin-bottom: 24px;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        box-shadow: 0 4px 14px rgba(4, 47, 46, 0.25);
+    ">
+        <div>
+            <div style="font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 1.2px; color: #5eead4; margin-bottom: 4px;">
+                Aiqon Logistics AI • Predictive Intelligence
+            </div>
+            <div style="font-size: 1.7rem; font-weight: 700; letter-spacing: -0.5px; line-height: 1.2; margin-bottom: 6px;">
+                Shipment ETA & Operational Attribution
+            </div>
+            <div style="font-size: 0.92rem; color: #ccfbf1; max-width: 800px;">
+                Real-time multi-stage delay forecasting, dynamic ETA recalculation, and physics-informed explainability attribution waterfall.
+            </div>
+        </div>
+        <div style="text-align: right; min-width: 150px;">
+            <span style="
+                background-color: rgba(94, 234, 212, 0.15);
+                color: #5eead4;
+                padding: 6px 14px;
+                border-radius: 20px;
+                font-size: 0.8rem;
+                font-weight: 600;
+                border: 1px solid rgba(94, 234, 212, 0.35);
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+            ">
+                🎯 Dynamic Inference
+            </span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     if df_shipments.empty:
         st.warning("No shipment data available.")
@@ -1021,10 +1060,30 @@ elif nav_choice == "Model Governance & Metrics":
             split_data = metrics.get("split_info", {"train_size": 200, "test_size": 50, "split_type": "chronological"})
 
             m_col1, m_col2, m_col3, m_col4 = st.columns(4)
-            m_col1.metric("Training Set Size", f"{split_data.get('train_size', 200)} shipments", "Historical Baseline")
-            m_col2.metric("Held-Out Test Set", f"{split_data.get('test_size', 50)} shipments", "20% Out-of-Sample")
-            m_col3.metric("Split Methodology", "Strict Chronological", "Zero Look-Ahead Leakage")
-            m_col4.metric("Pipeline Architecture", "Standard Imputer + Scaler", "12 Engineered Features")
+
+            with m_col1:
+                with st.container(border=True):
+                    st.caption("TRAINING SET SIZE")
+                    st.markdown(f"#### {split_data.get('train_size', 200)} Shipments")
+                    st.markdown("<span style='color: #16a34a; font-size: 0.82rem; font-weight: 600;'>↑ Historical Baseline (80%)</span>", unsafe_allow_html=True)
+
+            with m_col2:
+                with st.container(border=True):
+                    st.caption("HELD-OUT TEST SET")
+                    st.markdown(f"#### {split_data.get('test_size', 50)} Shipments")
+                    st.markdown("<span style='color: #16a34a; font-size: 0.82rem; font-weight: 600;'>↑ 20% Out-of-Sample</span>", unsafe_allow_html=True)
+
+            with m_col3:
+                with st.container(border=True):
+                    st.caption("SPLIT METHODOLOGY")
+                    st.markdown("<div style='font-size: 1.15rem; font-weight: 700; color: inherit; margin: 4px 0 6px 0; line-height: 1.25;'>Strict Chronological</div>", unsafe_allow_html=True)
+                    st.markdown("<span style='color: #16a34a; font-size: 0.82rem; font-weight: 600;'>↑ Zero Look-Ahead Leakage</span>", unsafe_allow_html=True)
+
+            with m_col4:
+                with st.container(border=True):
+                    st.caption("PIPELINE ARCHITECTURE")
+                    st.markdown("<div style='font-size: 1.15rem; font-weight: 700; color: inherit; margin: 4px 0 6px 0; line-height: 1.25;'>Standard Imputer + Scaler</div>", unsafe_allow_html=True)
+                    st.markdown("<span style='color: #16a34a; font-size: 0.82rem; font-weight: 600;'>↑ 12 Engineered Features</span>", unsafe_allow_html=True)
 
             st.caption(
                 "🔒 **Data Leakage Guarantee**: Train/Test splits strictly follow chronological departure timestamps. "
