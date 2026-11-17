@@ -23,6 +23,28 @@ import pandas as pd
 from src.delay_propagation import simulate_delay_impact, format_hours_to_hhmm
 from src.explainability import explain_shipment_delay
 
+# Explicit Operational Risk Thresholds for Classifier P(Delay >= 24h)
+# Prediction Target: Probability of incurring a critical delay of 24 hours or more
+SLA_DELAY_THRESHOLD_HOURS: float = 24.0
+RISK_THRESHOLD_LOW: float = 0.35      # P(Delay >= 24h) < 0.35 -> Low Risk
+RISK_THRESHOLD_MEDIUM: float = 0.70   # 0.35 <= P(Delay >= 24h) < 0.70 -> Medium Risk
+                                      # P(Delay >= 24h) >= 0.70 -> High Risk
+
+
+def classify_risk_tier(delay_probability: float) -> str:
+    """
+    Classifies operational risk tier based on explicitly calibrated SLA breach thresholds:
+      - LOW: Probability < 35% of exceeding 24h delay
+      - MEDIUM: Probability between 35% and 70%
+      - HIGH: Probability >= 70%
+    """
+    if delay_probability < RISK_THRESHOLD_LOW:
+        return "LOW"
+    elif delay_probability < RISK_THRESHOLD_MEDIUM:
+        return "MEDIUM"
+    return "HIGH"
+
+
 
 class ShipmentInferenceEngine:
     """Production inference engine for ETA prediction and delay propagation."""
@@ -77,13 +99,8 @@ class ShipmentInferenceEngine:
         else:
             predicted_eta_iso = None
 
-        # 4. Risk Tier
-        if pred_prob < 0.35:
-            risk_tier = "LOW"
-        elif pred_prob < 0.70:
-            risk_tier = "MEDIUM"
-        else:
-            risk_tier = "HIGH"
+        # 4. Explicit Risk Tier Classification
+        risk_tier = classify_risk_tier(pred_prob)
 
         # 5. Local Explainability Breakdown
         explanation = explain_shipment_delay(pd.Series(shipment_dict), pred_delay_hours)
@@ -95,6 +112,7 @@ class ShipmentInferenceEngine:
             "predicted_eta": predicted_eta_iso,
             "scheduled_delivery": scheduled_delivery_raw,
             "delay_probability": round(pred_prob, 4),
+            "prediction_threshold": f"Delay of {int(SLA_DELAY_THRESHOLD_HOURS)} hours or more",
             "is_delayed_24h": pred_is_delayed,
             "risk_tier": risk_tier,
             "explanation": explanation,
@@ -132,12 +150,7 @@ class ShipmentInferenceEngine:
                 except Exception:
                     pass
 
-            if prob < 0.35:
-                tier = "LOW"
-            elif prob < 0.70:
-                tier = "MEDIUM"
-            else:
-                tier = "HIGH"
+            tier = classify_risk_tier(prob)
 
             results.append({
                 "shipment_id": row_dict.get("shipment_id", f"BATCH-{i:04d}"),
@@ -146,6 +159,7 @@ class ShipmentInferenceEngine:
                 "predicted_eta": predicted_eta_iso,
                 "scheduled_delivery": sched_delivery,
                 "delay_probability": round(prob, 4),
+                "prediction_threshold": f"Delay of {int(SLA_DELAY_THRESHOLD_HOURS)} hours or more",
                 "is_delayed_24h": flag,
                 "risk_tier": tier,
             })

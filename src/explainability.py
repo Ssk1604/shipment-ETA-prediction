@@ -153,15 +153,17 @@ def explain_shipment_delay(
         "predicted_delay_hours": round(predicted_delay_hours, 2),
         "delay_risk_category": risk_category,
         "stages": [
-            {"stage": "Origin Departure", "delay_contribution_hours": round(dep_delay, 2), "description": "Terminal & gate release delay"},
-            {"stage": "Ocean Transit (Weather)", "delay_contribution_hours": est_ocean_weather_delay, "description": "Sailing slowdown due to sea state"},
-            {"stage": "Port Congestion", "delay_contribution_hours": est_congestion_delay, "description": "Anchorage waiting time before berthing"},
-            {"stage": "Customs Inspection", "delay_contribution_hours": est_customs_delay, "description": "Regulatory clearance & documentation holds"},
-            {"stage": "Schedule Slack Absorption", "delay_contribution_hours": -slack_absorbed, "description": "Commercial schedule buffer absorbing upstream delay"},
+            {"stage": "Origin Departure Delay", "delay_contribution_hours": round(dep_delay, 2), "description": "Terminal & gate release delay at origin port"},
+            {"stage": "Weather-related Transit Delay", "delay_contribution_hours": est_ocean_weather_delay, "description": "Sailing slowdown and storm rerouting induced by adverse sea state"},
+            {"stage": "Port Congestion / Anchorage Delay", "delay_contribution_hours": est_congestion_delay, "description": "Anchorage waiting and berth congestion dwell time"},
+            {"stage": "Customs Clearance Delay", "delay_contribution_hours": est_customs_delay, "description": "Regulatory inspection, documentation holds, and customs processing"},
+            {"stage": "Schedule Buffer Absorption", "delay_contribution_hours": -slack_absorbed, "description": "Commercial schedule buffer time absorbing upstream delays"},
         ],
+        "gross_delay_hours": round(gross_disruption, 2),
+        "buffer_absorbed_hours": round(slack_absorbed, 2),
         "net_explained_delay_hours": round(predicted_delay_hours, 2),
         "methodology_note": (
-            "Attributions reflect physical logistics stage accounting and schedule slack absorption. "
+            "Attributions reflect physical logistics stage accounting and schedule buffer absorption. "
             "Global feature importance reflects ML model variance reduction across all shipments."
         ),
     }

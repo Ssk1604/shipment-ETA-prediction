@@ -223,11 +223,25 @@ elif nav_choice == "Shipment ETA & Explainability":
         m1.metric("Commercial Scheduled SLA", str(row["scheduled_delivery"])[:16].replace("T", " "))
         m2.metric("Predicted Dynamic ETA", str(prediction["predicted_eta"])[:16].replace("T", " "))
         m3.metric("Predicted Final Delay", format_hours_to_hhmm(prediction['predicted_delay_hours']), f"{prediction['predicted_delay_hours']:+.2f}h raw")
-        
-        tier = prediction["risk_tier"]
-        badge_html = f"<div style='margin-top: 10px;'><span class='badge-{tier.lower()}'>{tier} RISK ({prediction['delay_probability']:.1%})</span></div>"
-        m4.markdown("**Delay Risk Status**", unsafe_allow_html=True)
-        m4.markdown(badge_html, unsafe_allow_html=True)
+
+        tier = prediction["risk_tier"].title()
+        prob_pct = prediction["delay_probability"] * 100
+        threshold_desc = prediction.get("prediction_threshold", "Delay ≥ 24 hours")
+
+        m4.markdown("**Delay Risk Assessment**")
+        border_col = '#28a745' if tier == 'Low' else ('#ffc107' if tier == 'Medium' else '#dc3545')
+        m4.markdown(f"""
+        <div style="background-color: #f8f9fa; border-radius: 6px; padding: 8px 12px; border-left: 4px solid {border_col}; margin-top: -6px;">
+            <div style="font-size: 0.82rem; margin-bottom: 2px;">Delay Probability: <b>{prob_pct:.1f}%</b></div>
+            <div style="font-size: 0.82rem; margin-bottom: 2px;">Risk Category: <span class="badge-{prediction['risk_tier'].lower()}">{tier}</span></div>
+            <div style="font-size: 0.74rem; color: #555;"><b>Prediction Target:</b> {threshold_desc}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.caption(
+            "ℹ️ **Calibrated Risk Definition**: Delay probability quantifies the likelihood of a major SLA breach (**Delay ≥ 24 hours**). "
+            "Explicit thresholds: **Low Risk** (< 35%), **Medium Risk** (35% – 70%), **High Risk** (≥ 70%)."
+        )
 
         st.markdown("---")
 
@@ -262,14 +276,40 @@ elif nav_choice == "Shipment ETA & Explainability":
 
         with col_info:
             st.subheader("Attribution Breakdown Details")
-            for s in stages:
-                hours = s["delay_contribution_hours"]
-                sign = "+" if hours > 0 else ""
-                st.markdown(f"**{s['stage']}**: `{format_hours_to_hhmm(hours, show_early=False)}` _({sign}{hours:.2f}h raw)_  \n_{s['description']}_")
+            st.caption("Operational stage breakdown distinguishing newly introduced disruptions from schedule buffer mitigation.")
 
-            st.info(
-                "💡 **Engineering Note**: Unlike static ML feature weights, this waterfall reflects "
-                "the true physical transit accounting including schedule buffer absorption."
+            stages = prediction["explanation"]["stages"]
+            delay_stages = [s for s in stages if s["delay_contribution_hours"] >= 0]
+            buffer_stages = [s for s in stages if s["delay_contribution_hours"] < 0]
+
+            gross_delay = sum(s["delay_contribution_hours"] for s in delay_stages)
+            absorbed_delay = abs(sum(s["delay_contribution_hours"] for s in buffer_stages))
+
+            st.markdown("##### 🚨 Newly Introduced Stage Delays")
+            for s in delay_stages:
+                hours = s["delay_contribution_hours"]
+                st.markdown(
+                    f"- **{s['stage']}**: `{format_hours_to_hhmm(hours, show_early=False)}` _(+{hours:.2f}h)_  \n"
+                    f"  <span style='color: #666; font-size: 0.85rem;'>{s['description']}</span>",
+                    unsafe_allow_html=True,
+                )
+            st.markdown(f"**Gross Delay Incurred:** `{format_hours_to_hhmm(gross_delay, show_early=False)}` _(+{gross_delay:.2f}h)_")
+
+            st.markdown("---")
+            st.markdown("##### 🛡️ Schedule Buffer Absorption (Mitigation)")
+            for s in buffer_stages:
+                hours = abs(s["delay_contribution_hours"])
+                st.markdown(
+                    f"- **{s['stage']}**: `-{format_hours_to_hhmm(hours, show_early=False)}` _(-{hours:.2f}h)_  \n"
+                    f"  <span style='color: #28a745; font-size: 0.85rem;'>{s['description']}</span>",
+                    unsafe_allow_html=True,
+                )
+            st.markdown(f"**Total Buffer Absorbed:** `-{format_hours_to_hhmm(absorbed_delay, show_early=False)}` _(-{absorbed_delay:.2f}h)_")
+
+            st.markdown("---")
+            st.markdown(
+                f"**🎯 Net Predicted Final Delay:** `{format_hours_to_hhmm(prediction['predicted_delay_hours'])}` "
+                f"_({prediction['predicted_delay_hours']:+.2f}h)_"
             )
 
 

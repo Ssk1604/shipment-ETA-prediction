@@ -42,6 +42,8 @@ class PredictionExplanation(BaseModel):
     predicted_delay_hours: float
     delay_risk_category: str
     stages: List[StageAttribution]
+    gross_delay_hours: Optional[float] = None
+    buffer_absorbed_hours: Optional[float] = None
     net_explained_delay_hours: float
     methodology_note: str
 
@@ -53,6 +55,7 @@ class PredictionResponse(BaseModel):
     predicted_eta: Optional[str]
     scheduled_delivery: Optional[str]
     delay_probability: float
+    prediction_threshold: Optional[str] = Field("Delay of 24 hours or more", json_schema_extra={"example": "Delay of 24 hours or more"})
     is_delayed_24h: int
     risk_tier: str
     explanation: Optional[PredictionExplanation] = None
@@ -65,6 +68,7 @@ class BatchPredictionItem(BaseModel):
     predicted_eta: Optional[str]
     scheduled_delivery: Optional[str]
     delay_probability: float
+    prediction_threshold: Optional[str] = Field("Delay of 24 hours or more", json_schema_extra={"example": "Delay of 24 hours or more"})
     is_delayed_24h: int
     risk_tier: str
 
