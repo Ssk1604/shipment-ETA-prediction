@@ -802,7 +802,7 @@ elif nav_choice == "Delay Propagation Engine":
 
         st.dataframe(df_time[base_cols], width="stretch")
 
-        st.info("💡 **Operational Note**: The **Delay Change** represents changes in schedule deviation between consecutive checkpoints (not independently established causes). Negative changes indicate delay absorbed by schedule slack, while positive changes indicate stage disruptions.")
+        st.caption("💡 **Operational Note**: **Delay Change** reflects stage-by-stage schedule deviation shifts. Negative values indicate delay absorbed by planned commercial slack; positive values reflect newly introduced disruptions.")
 
         # Propagation math breakdown
         st.subheader("Mathematical Propagation Principles")
@@ -1120,7 +1120,7 @@ elif nav_choice == "Model Governance & Metrics":
                 },
             ])
             st.dataframe(reg_table, width="stretch", hide_index=True)
-            st.success(f"✅ **Accuracy Gain**: Aiqon Model reduces Mean Absolute Error by **{mae_drop_pct}%** (from {base_reg['mae_hours']:.1f}h down to {rf_reg['mae_hours']:.1f}h), explaining **{rf_reg['r2_score'] * 100:.1f}%** of true schedule variance.")
+            st.caption(f"📈 **Benchmark Impact**: Aiqon Model reduces Mean Absolute Error by **{mae_drop_pct}%** over historical baseline (from {base_reg['mae_hours']:.1f}h down to {rf_reg['mae_hours']:.1f}h), capturing **{rf_reg['r2_score'] * 100:.1f}%** of true schedule variance.")
 
         with col_reg_chart:
             fig_mae = go.Figure(data=[
@@ -1158,7 +1158,7 @@ elif nav_choice == "Model Governance & Metrics":
                 {"Metric": "ROC-AUC", "Score": f"{clf_m['roc_auc']:.4f}", "Operational Meaning": "Separation capability across all decision probability thresholds"},
             ])
             st.dataframe(clf_table, width="stretch", hide_index=True)
-            st.info("🎯 **Operational Focus on High Recall**: In commercial shipping, failing to catch a late arrival (**False Negative**) triggers assembly line halts and contractual fines. The model achieves **94.1% Recall**, catching 16 of 17 critical disruptions in advance.")
+            st.caption("🎯 **Recall Tuning Rationale**: In maritime logistics, False Negatives carry catastrophic SLA penalty and downtime costs. The classifier is calibrated for **94.1% Recall**, catching 16 of 17 critical disruptions in advance while maintaining a low false-alarm profile.")
 
         with col_clf_cm:
             cm = clf_m.get("confusion_matrix", [[28, 5], [1, 16]])
