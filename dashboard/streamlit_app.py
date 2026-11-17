@@ -497,139 +497,118 @@ elif nav_choice == "Delay Propagation Engine":
         change_final_h = final_delay_h - inh_final_h
 
         # -------------------------------------------------------------
-        # Visual Delay Propagation Timeline (Stepper Component)
+        # Visual Delay Propagation Timeline (Interactive Journey Track)
         # -------------------------------------------------------------
-        st.subheader("Visual Delay Propagation Timeline")
-        st.caption("End-to-end journey progression tracking milestone schedule deviations and disruption compounding.")
+        st.subheader("Visual Delay Propagation Journey Track")
+        st.caption("Graphical milestone trajectory. Downward slopes indicate schedule buffer absorption; upward spikes reveal compounding bottlenecks.")
 
-        # 1. Origin Departure
-        if dep_delay_h < -0.1:
-            c1, lbl1 = "#16a34a", f"Early ({format_hours_to_hhmm(dep_delay_h, show_early=False)})"
-        elif abs(dep_delay_h) <= 0.1:
-            c1, lbl1 = "#64748b", "On Schedule (0m)"
-        else:
-            c1, lbl1 = "#dc2626", f"Late ({format_hours_to_hhmm(dep_delay_h, show_early=False)})"
+        # Trajectory delay values
+        ocean_proj_delay = dep_delay_h + (change_port_h if change_port_h is not None else 0.0)
+        port_arr_delay = port_delay_h if port_delay_h is not None else ocean_proj_delay
 
-        # 2. Ocean Transit
-        dist_km = float(record.get("distance_km", 0.0) or 0.0)
-        weather_val = float(record.get("weather_severity", 2.0) or 2.0)
-        if change_port_h is not None:
-            if change_port_h > 2.0:
-                c2, lbl2 = "#ea580c", f"Disruption (+{change_port_h:.1f}h)"
-            elif change_port_h < -1.0:
-                c2, lbl2 = "#16a34a", f"Buffer Absorbed ({change_port_h:.1f}h)"
-            else:
-                c2, lbl2 = "#64748b", "Nominal Sailing"
-        else:
-            c2, lbl2 = "#64748b", "In Transit"
+        x_stages = [
+            "1. Origin Departure",
+            "2. Ocean Transit",
+            "3. Port Arrival",
+            "4. Terminal & Customs",
+            "5. Consignee Delivery",
+        ]
+        y_delays = [
+            dep_delay_h,
+            ocean_proj_delay,
+            port_arr_delay,
+            final_delay_h,
+            final_delay_h,
+        ]
 
-        # 3. Port Arrival
-        if act_port is None:
-            c3, lbl3 = "#ea580c", "Telemetry Gap / Imputed"
-        elif port_delay_h is not None:
-            if port_delay_h < -0.1:
-                c3, lbl3 = "#16a34a", f"Early ({format_hours_to_hhmm(port_delay_h, show_early=False)})"
-            elif abs(port_delay_h) <= 0.1:
-                c3, lbl3 = "#64748b", "On Schedule (0m)"
-            else:
-                c3, lbl3 = "#dc2626", f"Late ({format_hours_to_hhmm(port_delay_h, show_early=False)})"
-        else:
-            c3, lbl3 = "#64748b", "In Transit"
+        node_colors = [c1, c2, c3, c4, c5]
+        node_texts = [
+            format_hours_to_hhmm(dep_delay_h, show_early=False),
+            format_hours_to_hhmm(change_port_h, show_early=False) if change_port_h is not None else "Nominal",
+            format_hours_to_hhmm(port_delay_h, show_early=False) if port_delay_h is not None else "Missing",
+            format_hours_to_hhmm(change_final_h, show_early=False),
+            format_hours_to_hhmm(final_delay_h, show_early=False),
+        ]
 
-        # 4. Port & Customs Dwell
-        port_proc_h = float(record.get("port_processing_hours", 24.0) or 24.0)
-        cust_proc_h = float(record.get("customs_processing_hours", 16.0) or 16.0)
-        port_cong_pct = float(record.get("port_congestion", 0.3) or 0.3) * 100.0
-        if change_final_h > 2.0:
-            c4, lbl4 = "#ea580c", f"Disruption (+{change_final_h:.1f}h)"
-        elif change_final_h < -1.0:
-            c4, lbl4 = "#16a34a", f"Buffer Absorbed ({change_final_h:.1f}h)"
-        else:
-            c4, lbl4 = "#64748b", "Nominal Clearance"
+        hover_info = [
+            f"<b>1. Origin Departure</b><br>Actual: {fmt_dt(act_dep)}<br>Scheduled: {fmt_dt(sched_dep)}<br>Deviation: {format_hours_to_hhmm(dep_delay_h, show_early=False)}",
+            f"<b>2. Ocean Transit</b><br>Corridor: {dist_km:,.0f} km<br>Sea State: {weather_val:.2f}/5<br>Transit Deviation: {format_hours_to_hhmm(change_port_h, show_early=False) if change_port_h is not None else 'Nominal'}",
+            f"<b>3. Port Arrival</b><br>Actual: {fmt_dt(act_port) if act_port is not None else 'Missing Telemetry'}<br>Scheduled: {fmt_dt(sched_port)}<br>Port Deviation: {format_hours_to_hhmm(port_delay_h, show_early=False) if port_delay_h is not None else 'N/A'}",
+            f"<b>4. Terminal & Customs Dwell</b><br>Port Dwell: {port_proc_h:.0f}h | Customs: {cust_proc_h:.0f}h<br>Berth Congestion: {port_cong_pct:.0f}%<br>Dwell Impact: {format_hours_to_hhmm(change_final_h, show_early=False)}",
+            f"<b>5. Consignee Delivery</b><br>Actual: {fmt_dt(act_del)}<br>Scheduled: {fmt_dt(sched_del)}<br>Final Delay: {format_hours_to_hhmm(final_delay_h, show_early=False)}",
+        ]
 
-        # 5. Final Consignee Delivery
-        if final_delay_h < -0.1:
-            c5, lbl5 = "#16a34a", f"Early ({format_hours_to_hhmm(final_delay_h, show_early=False)})"
-        elif abs(final_delay_h) <= 0.1:
-            c5, lbl5 = "#64748b", "On Schedule (0m)"
-        else:
-            c5, lbl5 = "#dc2626", f"Late ({format_hours_to_hhmm(final_delay_h, show_early=False)})"
+        fig_track = go.Figure()
 
-        def _render_step_card(step_num: int, title: str, icon: str, color: str, main_txt: str, sub_txt: str, pill_txt: str) -> str:
-            return f"""
-            <div style="
-                flex: 1;
-                min-width: 180px;
-                background: #ffffff;
-                border: 1px solid #e2e8f0;
-                border-top: 4px solid {color};
-                border-radius: 8px;
-                padding: 12px 14px;
-                box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-                display: flex;
-                flex-direction: column;
-                justify-content: space-between;
-            ">
-                <div>
-                    <div style="font-size: 0.74rem; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.4px; margin-bottom: 5px;">
-                        {icon} {step_num}. {title}
-                    </div>
-                    <div style="font-size: 0.95rem; font-weight: 700; color: #1e293b; margin-bottom: 2px;">
-                        {main_txt}
-                    </div>
-                    <div style="font-size: 0.74rem; color: #64748b; margin-bottom: 10px;">
-                        {sub_txt}
-                    </div>
-                </div>
-                <div>
-                    <span style="
-                        background-color: {color}18;
-                        color: {color};
-                        border: 1px solid {color}40;
-                        padding: 3px 8px;
-                        border-radius: 12px;
-                        font-size: 0.72rem;
-                        font-weight: 600;
-                        display: inline-block;
-                    ">
-                        {pill_txt}
-                    </span>
-                </div>
-            </div>
-            """
+        # Connect journey with trajectory line
+        fig_track.add_trace(go.Scatter(
+            x=x_stages,
+            y=y_delays,
+            mode="lines+markers+text",
+            line=dict(color="#6366f1", width=3),
+            marker=dict(size=24, color=node_colors, line=dict(color="#ffffff", width=2)),
+            text=node_texts,
+            textposition="top center",
+            hovertext=hover_info,
+            hoverinfo="text",
+            showlegend=False,
+        ))
 
-        arrow_sep = """
-        <div style="display: flex; align-items: center; justify-content: center; color: #94a3b8; font-size: 1.3rem; font-weight: bold; padding: 0 4px;">
-            ➔
-        </div>
-        """
+        # Baseline and SLA reference lines
+        fig_track.add_hline(y=0.0, line_dash="solid", line_color="#10b981", annotation_text="Scheduled Target (0h)")
+        fig_track.add_hline(y=24.0, line_dash="dash", line_color="#ef4444", annotation_text="24h SLA Threshold")
 
-        card1 = _render_step_card(1, "Origin Departure", "🚢", c1, fmt_dt(act_dep), f"Sched: {fmt_dt(sched_dep)}", lbl1)
-        card2 = _render_step_card(2, "Ocean Transit", "🌊", c2, f"{dist_km:,.0f} km Corridor", f"Sea Severity: {weather_val:.2f}/5", lbl2)
-        card3 = _render_step_card(3, "Port Arrival", "⚓", c3, fmt_dt(act_port) if act_port is not None else "Missing Telemetry", f"Sched: {fmt_dt(sched_port)}", lbl3)
-        card4 = _render_step_card(4, "Terminal & Customs", "🏢", c4, f"Dwell: {port_proc_h:.0f}h | Cust: {cust_proc_h:.0f}h", f"Congestion: {port_cong_pct:.0f}%", lbl4)
-        card5 = _render_step_card(5, "Consignee Delivery", "📦", c5, fmt_dt(act_del), f"Sched: {fmt_dt(sched_del)}", lbl5)
+        fig_track.update_layout(
+            height=320,
+            margin=dict(t=40, b=20, l=40, r=40),
+            yaxis_title="Schedule Deviation (Hours)",
+        )
+        st.plotly_chart(fig_track, use_container_width=True)
 
-        timeline_html = f"""
-        <div style="display: flex; align-items: stretch; justify-content: space-between; gap: 4px; margin: 12px 0 16px 0; overflow-x: auto; padding: 4px 0;">
-            {card1}
-            {arrow_sep}
-            {card2}
-            {arrow_sep}
-            {card3}
-            {arrow_sep}
-            {card4}
-            {arrow_sep}
-            {card5}
-        </div>
-        """
-        st.markdown(timeline_html, unsafe_allow_html=True)
+        # 5 Native Milestone Stepper Cards (Fully Dark/Light Mode Compatible)
+        c1_col, c2_col, c3_col, c4_col, c5_col = st.columns(5)
+
+        with c1_col:
+            with st.container(border=True):
+                st.markdown("🚢 **1. Departure**")
+                st.markdown(f"**{fmt_dt(act_dep)}**")
+                st.caption(f"Sched: {fmt_dt(sched_dep)}")
+                st.markdown(f"`{lbl1}`")
+
+        with c2_col:
+            with st.container(border=True):
+                st.markdown("🌊 **2. Ocean Transit**")
+                st.markdown(f"**{dist_km:,.0f} km Leg**")
+                st.caption(f"Sea Severity: {weather_val:.2f}/5")
+                st.markdown(f"`{lbl2}`")
+
+        with c3_col:
+            with st.container(border=True):
+                st.markdown("⚓ **3. Port Arrival**")
+                st.markdown(f"**{fmt_dt(act_port) if act_port is not None else 'Missing Telemetry'}**")
+                st.caption(f"Sched: {fmt_dt(sched_port)}")
+                st.markdown(f"`{lbl3}`")
+
+        with c4_col:
+            with st.container(border=True):
+                st.markdown("🏢 **4. Terminal Dwell**")
+                st.markdown(f"**Port {port_proc_h:.0f}h | Cust {cust_proc_h:.0f}h**")
+                st.caption(f"Congestion: {port_cong_pct:.0f}%")
+                st.markdown(f"`{lbl4}`")
+
+        with c5_col:
+            with st.container(border=True):
+                st.markdown("📦 **5. Final Delivery**")
+                st.markdown(f"**{fmt_dt(act_del)}**")
+                st.caption(f"Sched: {fmt_dt(sched_del)}")
+                st.markdown(f"`{lbl5}`")
+
         st.caption(
             "🎨 **Timeline Color Code:** "
             "<span style='color: #dc2626; font-weight: bold;'>■ Red</span>: Late | "
             "<span style='color: #16a34a; font-weight: bold;'>■ Green</span>: Early / Buffer Absorbed | "
             "<span style='color: #64748b; font-weight: bold;'>■ Grey</span>: On Schedule | "
-            "<span style='color: #ea580c; font-weight: bold;'>■ Orange</span>: New Disruption Incurred",
+            "<span style='color: #ea580c; font-weight: bold;'>■ Orange</span>: Disruption Incurred",
             unsafe_allow_html=True,
         )
         st.markdown("---")
