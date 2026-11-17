@@ -63,7 +63,12 @@ engine = load_engine()
 df_shipments = load_dataset()
 
 # Sidebar Navigation
-st.sidebar.image("https://img.icons8.com/color/96/cargo-ship.png", width=64)
+logo_path = os.path.join(PROJECT_ROOT, "assets", "aiqon_logo.svg")
+if os.path.exists(logo_path):
+    st.sidebar.image(logo_path, width=76)
+else:
+    st.sidebar.image("https://img.icons8.com/color/96/cargo-ship.png", width=64)
+
 st.sidebar.title("Aiqon Logistics AI")
 st.sidebar.caption("Maritime ETA & Delay Propagation Engine v1.0")
 
@@ -82,8 +87,48 @@ nav_choice = st.sidebar.radio(
 # TAB 1: FLEET OVERVIEW
 # -------------------------------------------------------------
 if nav_choice == "Fleet Overview":
-    st.title("🌐 Global Fleet Operations Overview")
-    st.markdown("Real-time operational visibility across commercial maritime trade lanes.")
+    st.markdown("""
+    <div style="
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        border-radius: 12px;
+        padding: 22px 26px;
+        margin-bottom: 24px;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        box-shadow: 0 4px 14px rgba(15, 23, 42, 0.16);
+    ">
+        <div>
+            <div style="font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 1.2px; color: #38bdf8; margin-bottom: 4px;">
+                Aiqon Logistics AI • Global Fleet Control Tower
+            </div>
+            <div style="font-size: 1.7rem; font-weight: 700; letter-spacing: -0.5px; line-height: 1.2; margin-bottom: 6px;">
+                Maritime ETA & Delay Propagation Engine
+            </div>
+            <div style="font-size: 0.92rem; color: #94a3b8; max-width: 800px;">
+                Real-time operational visibility, predictive ETA tracking, and delay propagation monitoring across commercial maritime trade lanes.
+            </div>
+        </div>
+        <div style="text-align: right; min-width: 150px;">
+            <span style="
+                background-color: rgba(34, 197, 94, 0.15);
+                color: #4ade80;
+                padding: 6px 14px;
+                border-radius: 20px;
+                font-size: 0.8rem;
+                font-weight: 600;
+                border: 1px solid rgba(74, 222, 128, 0.3);
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+            ">
+                <span style="height: 8px; width: 8px; background-color: #22c55e; border-radius: 50%; display: inline-block;"></span>
+                Live Fleet Feed
+            </span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     if df_shipments.empty:
         st.warning("Shipment dataset not found. Please run `python -m src.data_generator`.")

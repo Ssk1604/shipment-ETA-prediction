@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="shipGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0284c7"/>
+      <stop offset="100%" stop-color="#38bdf8"/>
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#818cf8"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded Background Container -->
+  <rect width="200" height="200" rx="36" fill="url(#bgGrad)"/>
+
+  <!-- AI Radar / Waves in Background -->
+  <circle cx="100" cy="100" r="70" fill="none" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="4 6" opacity="0.25"/>
+  <circle cx="100" cy="100" r="50" fill="none" stroke="#38bdf8" stroke-width="1.5" opacity="0.35"/>
+
+  <!-- Cargo Containers on Deck -->
+  <rect x="72" y="74" width="22" height="14" rx="2" fill="#38bdf8" opacity="0.9"/>
+  <rect x="98" y="74" width="22" height="14" rx="2" fill="#818cf8" opacity="0.9"/>
+  <rect x="85" y="58" width="22" height="13" rx="2" fill="#f59e0b" opacity="0.95"/>
+
+  <!-- Bridge / Superstructure -->
+  <path d="M124 64 L138 64 L134 88 L124 88 Z" fill="#e2e8f0"/>
+  <rect x="127" y="68" width="7" height="4" rx="1" fill="#0f172a"/>
+
+  <!-- Cargo Vessel Hull -->
+  <path d="M46 92 L150 92 L138 126 L62 126 Z" fill="url(#shipGrad)"/>
+  <!-- Bow Cut -->
+  <path d="M150 92 L168 96 L138 126 Z" fill="#0284c7"/>
+
+  <!-- Waterline Hull Accent -->
+  <path d="M58 120 L142 120 L138 126 L62 126 Z" fill="#0369a1"/>
+
+  <!-- Ocean Waves -->
+  <path d="M30 138 C 50 132, 70 144, 90 138 C 110 132, 130 144, 150 138 C 165 133, 175 140, 185 138" fill="none" stroke="url(#accentGrad)" stroke-width="4" stroke-linecap="round"/>
+  <path d="M42 152 C 60 148, 80 156, 100 152 C 120 148, 140 156, 160 152" fill="none" stroke="#0284c7" stroke-width="2.5" stroke-linecap="round" opacity="0.6"/>
+
+  <!-- AI Signal Node on Mast -->
+  <line x1="131" y1="64" x2="131" y2="52" stroke="#e2e8f0" stroke-width="2"/>
+  <circle cx="131" cy="50" r="3.5" fill="#38bdf8"/>
+  <circle cx="131" cy="50" r="7" fill="none" stroke="#38bdf8" stroke-width="1.2" opacity="0.75"/>
+</svg>
