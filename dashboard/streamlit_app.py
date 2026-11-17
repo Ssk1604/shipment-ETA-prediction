@@ -228,13 +228,41 @@ elif nav_choice == "Shipment ETA & Explainability":
         prob_pct = prediction["delay_probability"] * 100
         threshold_desc = prediction.get("prediction_threshold", "Delay ≥ 24 hours")
 
-        m4.markdown("**Delay Risk Assessment**")
-        border_col = '#28a745' if tier == 'Low' else ('#ffc107' if tier == 'Medium' else '#dc3545')
+        if tier == "Low":
+            bg_grad = "linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)"
+            border_c = "#86efac"
+            text_c = "#14532d"
+            dot_c = "#22c55e"
+        elif tier == "Medium":
+            bg_grad = "linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)"
+            border_c = "#fde68a"
+            text_c = "#78350f"
+            dot_c = "#f59e0b"
+        else:
+            bg_grad = "linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)"
+            border_c = "#fca5a5"
+            text_c = "#7f1d1d"
+            dot_c = "#ef4444"
+
         m4.markdown(f"""
-        <div style="background-color: #f8f9fa; border-radius: 6px; padding: 8px 12px; border-left: 4px solid {border_col}; margin-top: -6px;">
-            <div style="font-size: 0.82rem; margin-bottom: 2px;">Delay Probability: <b>{prob_pct:.1f}%</b></div>
-            <div style="font-size: 0.82rem; margin-bottom: 2px;">Risk Category: <span class="badge-{prediction['risk_tier'].lower()}">{tier}</span></div>
-            <div style="font-size: 0.74rem; color: #555;"><b>Prediction Target:</b> {threshold_desc}</div>
+        <div style="
+            background: {bg_grad};
+            border: 1px solid {border_c};
+            border-radius: 12px;
+            padding: 10px 14px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+            margin-top: -4px;
+        ">
+            <div style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.6px; color: #4b5563; font-weight: 600; margin-bottom: 2px;">
+                SLA Breach Risk (≥24h)
+            </div>
+            <div style="font-size: 1.25rem; font-weight: 700; color: {text_c}; display: flex; align-items: center; gap: 6px; line-height: 1.2;">
+                <span style="height: 8px; width: 8px; background-color: {dot_c}; border-radius: 50%; display: inline-block;"></span>
+                {tier} Risk <span style="font-size: 0.88rem; font-weight: 600; opacity: 0.85;">({prob_pct:.1f}%)</span>
+            </div>
+            <div style="font-size: 0.73rem; color: #4b5563; margin-top: 3px;">
+                <b>Target:</b> {threshold_desc}
+            </div>
         </div>
         """, unsafe_allow_html=True)
 
