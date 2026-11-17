@@ -3,7 +3,7 @@ Pydantic Schemas for FastAPI Request/Response Validation.
 """
 
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class HealthResponse(BaseModel):
@@ -29,6 +29,29 @@ class ShipmentInput(BaseModel):
     port_processing_hours: float = Field(28.0, ge=1.0, le=300.0, json_schema_extra={"example": 36.0})
     customs_processing_hours: float = Field(16.0, ge=1.0, le=300.0, json_schema_extra={"example": 24.0})
     scheduled_delivery: Optional[str] = Field("2026-02-28T12:00:00", json_schema_extra={"example": "2026-02-28T12:00:00"})
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "shipment_id": "SHP-2026-0001",
+                "route": "ASIA-EUR-01",
+                "origin": "CNSHA",
+                "destination": "NLRTM",
+                "distance_km": 19500.0,
+                "carrier_rating": 0.88,
+                "scheduled_departure": "2026-02-01T08:00:00",
+                "departure_delay_hours": 4.5,
+                "scheduled_port_arrival": "2026-02-24T18:00:00",
+                "actual_port_arrival": "2026-02-25T02:00:00",
+                "port_arrival_delay_hours": 8.0,
+                "port_congestion": 0.45,
+                "weather_severity": 3.2,
+                "port_processing_hours": 36.0,
+                "customs_processing_hours": 24.0,
+                "scheduled_delivery": "2026-02-28T12:00:00"
+            }
+        }
+    )
 
 
 class StageAttribution(BaseModel):
@@ -76,6 +99,51 @@ class BatchPredictionItem(BaseModel):
 class BatchPredictionRequest(BaseModel):
     shipments: List[ShipmentInput] = Field(..., min_length=1, max_length=5000)
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "shipments": [
+                    {
+                        "shipment_id": "SHP-2026-0001",
+                        "route": "ASIA-EUR-01",
+                        "origin": "CNSHA",
+                        "destination": "NLRTM",
+                        "distance_km": 19500.0,
+                        "carrier_rating": 0.88,
+                        "scheduled_departure": "2026-02-01T08:00:00",
+                        "departure_delay_hours": 4.5,
+                        "scheduled_port_arrival": "2026-02-24T18:00:00",
+                        "actual_port_arrival": "2026-02-25T02:00:00",
+                        "port_arrival_delay_hours": 8.0,
+                        "port_congestion": 0.45,
+                        "weather_severity": 3.2,
+                        "port_processing_hours": 36.0,
+                        "customs_processing_hours": 24.0,
+                        "scheduled_delivery": "2026-02-28T12:00:00"
+                    },
+                    {
+                        "shipment_id": "SHP-2026-0002",
+                        "route": "ASIA-US-01",
+                        "origin": "CNSHA",
+                        "destination": "USLAX",
+                        "distance_km": 11500.0,
+                        "carrier_rating": 0.95,
+                        "scheduled_departure": "2026-02-05T14:00:00",
+                        "departure_delay_hours": 0.0,
+                        "scheduled_port_arrival": "2026-02-18T10:00:00",
+                        "actual_port_arrival": "2026-02-18T08:00:00",
+                        "port_arrival_delay_hours": -2.0,
+                        "port_congestion": 0.20,
+                        "weather_severity": 1.5,
+                        "port_processing_hours": 22.0,
+                        "customs_processing_hours": 14.0,
+                        "scheduled_delivery": "2026-02-21T18:00:00"
+                    }
+                ]
+            }
+        }
+    )
+
 
 class BatchPredictionResponse(BaseModel):
     total_processed: int
@@ -84,10 +152,20 @@ class BatchPredictionResponse(BaseModel):
 
 
 class SimulationRequest(BaseModel):
-    shipment_id: Optional[str] = Field(None, description="Optional ID of existing shipment to simulate")
+    shipment_id: Optional[str] = Field("SHP-2026-0001", description="Optional ID of existing shipment to simulate")
     shipment_data: Optional[ShipmentInput] = Field(None, description="Custom shipment data if ID not provided")
-    disruption_stage: str = Field(..., pattern="^(port|customs|transit)$", json_schema_extra={"example": "port"})
-    additional_disruption_hours: float = Field(..., ge=0.0, le=300.0, json_schema_extra={"example": 24.0})
+    disruption_stage: str = Field("port", pattern="^(port|customs|transit)$", json_schema_extra={"example": "port"})
+    additional_disruption_hours: float = Field(24.0, ge=0.0, le=300.0, json_schema_extra={"example": 24.0})
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "shipment_id": "SHP-2026-0001",
+                "disruption_stage": "port",
+                "additional_disruption_hours": 24.0
+            }
+        }
+    )
 
 
 class SimulationResponse(BaseModel):

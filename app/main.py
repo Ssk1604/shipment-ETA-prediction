@@ -17,7 +17,7 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from fastapi import FastAPI, HTTPException, Query, status
+from fastapi import FastAPI, HTTPException, Query, Path, Body, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.schemas import (
@@ -82,10 +82,10 @@ def health_check():
     summary="Retrieve shipment records",
 )
 def get_shipments(
-    limit: int = Query(50, ge=1, le=250, description="Max records to return"),
-    offset: int = Query(0, ge=0, description="Pagination offset"),
-    route: Optional[str] = Query(None, description="Filter by route code (e.g. ASIA-EUR-01)"),
-    is_delayed: Optional[int] = Query(None, ge=0, le=1, description="Filter by delay status (1 = delayed >=24h, 0 = on-time)"),
+    limit: int = Query(50, ge=1, le=250, description="Max records to return", examples=[10]),
+    offset: int = Query(0, ge=0, description="Pagination offset", examples=[0]),
+    route: Optional[str] = Query(None, description="Filter by route code (e.g. ASIA-EUR-01)", examples=["ASIA-EUR-01"]),
+    is_delayed: Optional[int] = Query(None, ge=0, le=1, description="Filter by delay status (1 = delayed >=24h, 0 = on-time)", examples=[1]),
 ):
     """Retrieves paginated and filtered historical/operational shipments."""
     service = get_shipment_service()
@@ -97,7 +97,9 @@ def get_shipments(
     tags=["Shipments"],
     summary="Retrieve single shipment by ID",
 )
-def get_shipment(shipment_id: str):
+def get_shipment(
+    shipment_id: str = Path(..., description="Unique shipment identifier", examples=["SHP-2026-0001"])
+):
     """Retrieves full telemetry and operational parameters for a specific shipment."""
     service = get_shipment_service()
     record = service.get_shipment_by_id(shipment_id)
@@ -115,7 +117,57 @@ def get_shipment(shipment_id: str):
     tags=["Prediction & Explainability"],
     summary="Predict shipment ETA and delay risk",
 )
-def predict_eta(payload: ShipmentInput):
+def predict_eta(
+    payload: ShipmentInput = Body(
+        ...,
+        openapi_examples={
+            "standard_shipment": {
+                "summary": "Standard Asia-to-Europe Voyage (Moderate Friction)",
+                "description": "Realistic container shipment with 4.5h origin departure delay and moderate port congestion.",
+                "value": {
+                    "shipment_id": "SHP-2026-0001",
+                    "route": "ASIA-EUR-01",
+                    "origin": "CNSHA",
+                    "destination": "NLRTM",
+                    "distance_km": 19500.0,
+                    "carrier_rating": 0.88,
+                    "scheduled_departure": "2026-02-01T08:00:00",
+                    "departure_delay_hours": 4.5,
+                    "scheduled_port_arrival": "2026-02-24T18:00:00",
+                    "actual_port_arrival": "2026-02-25T02:00:00",
+                    "port_arrival_delay_hours": 8.0,
+                    "port_congestion": 0.45,
+                    "weather_severity": 3.2,
+                    "port_processing_hours": 36.0,
+                    "customs_processing_hours": 24.0,
+                    "scheduled_delivery": "2026-02-28T12:00:00",
+                },
+            },
+            "on_time_transpacific": {
+                "summary": "On-Time Transpacific Corridor (Asia → US West Coast)",
+                "description": "Smooth transit with calm seas and minimal port waiting.",
+                "value": {
+                    "shipment_id": "SHP-2026-0002",
+                    "route": "ASIA-US-01",
+                    "origin": "CNSHA",
+                    "destination": "USLAX",
+                    "distance_km": 11500.0,
+                    "carrier_rating": 0.95,
+                    "scheduled_departure": "2026-02-05T14:00:00",
+                    "departure_delay_hours": 0.0,
+                    "scheduled_port_arrival": "2026-02-18T10:00:00",
+                    "actual_port_arrival": "2026-02-18T08:00:00",
+                    "port_arrival_delay_hours": -2.0,
+                    "port_congestion": 0.20,
+                    "weather_severity": 1.5,
+                    "port_processing_hours": 22.0,
+                    "customs_processing_hours": 14.0,
+                    "scheduled_delivery": "2026-02-21T18:00:00",
+                },
+            },
+        },
+    )
+):
     """
     Predicts:
     1. Predicted delay in hours (RandomForestRegressor).
@@ -141,7 +193,57 @@ def predict_eta(payload: ShipmentInput):
     tags=["Prediction & Explainability"],
     summary="High-throughput batch ETA & delay prediction (thousands of shipments)",
 )
-def predict_batch_eta(payload: BatchPredictionRequest):
+def predict_batch_eta(
+    payload: BatchPredictionRequest = Body(
+        ...,
+        openapi_examples={
+            "batch_sample": {
+                "summary": "Two Concurrent Shipments (Asia-Europe & Transpacific)",
+                "description": "Batch inference evaluating multiple global trade corridors simultaneously.",
+                "value": {
+                    "shipments": [
+                        {
+                            "shipment_id": "SHP-2026-0001",
+                            "route": "ASIA-EUR-01",
+                            "origin": "CNSHA",
+                            "destination": "NLRTM",
+                            "distance_km": 19500.0,
+                            "carrier_rating": 0.88,
+                            "scheduled_departure": "2026-02-01T08:00:00",
+                            "departure_delay_hours": 4.5,
+                            "scheduled_port_arrival": "2026-02-24T18:00:00",
+                            "actual_port_arrival": "2026-02-25T02:00:00",
+                            "port_arrival_delay_hours": 8.0,
+                            "port_congestion": 0.45,
+                            "weather_severity": 3.2,
+                            "port_processing_hours": 36.0,
+                            "customs_processing_hours": 24.0,
+                            "scheduled_delivery": "2026-02-28T12:00:00",
+                        },
+                        {
+                            "shipment_id": "SHP-2026-0002",
+                            "route": "ASIA-US-01",
+                            "origin": "CNSHA",
+                            "destination": "USLAX",
+                            "distance_km": 11500.0,
+                            "carrier_rating": 0.95,
+                            "scheduled_departure": "2026-02-05T14:00:00",
+                            "departure_delay_hours": 0.0,
+                            "scheduled_port_arrival": "2026-02-18T10:00:00",
+                            "actual_port_arrival": "2026-02-18T08:00:00",
+                            "port_arrival_delay_hours": -2.0,
+                            "port_congestion": 0.20,
+                            "weather_severity": 1.5,
+                            "port_processing_hours": 22.0,
+                            "customs_processing_hours": 14.0,
+                            "scheduled_delivery": "2026-02-21T18:00:00",
+                        },
+                    ]
+                },
+            }
+        },
+    )
+):
     """
     High-throughput vectorized batch prediction:
     Accepts up to 5,000 shipments and processes them using vectorized C-level pipeline inference.
@@ -171,7 +273,48 @@ def predict_batch_eta(payload: BatchPredictionRequest):
     tags=["Simulation & Propagation"],
     summary="Simulate bottleneck disruption and downstream delay propagation",
 )
-def simulate_delay(payload: SimulationRequest):
+def simulate_delay(
+    payload: SimulationRequest = Body(
+        ...,
+        openapi_examples={
+            "simulate_existing_id": {
+                "summary": "Simulate Disruption on Existing Registry Shipment (by ID)",
+                "description": "Inject 24 hours of anchorage delay on an existing shipment from the database.",
+                "value": {
+                    "shipment_id": "SHP-2026-0001",
+                    "disruption_stage": "port",
+                    "additional_disruption_hours": 24.0,
+                },
+            },
+            "simulate_custom_data": {
+                "summary": "Simulate Disruption on Custom Ad-Hoc Shipment Data",
+                "description": "Provide a complete ad-hoc shipment payload and simulate customs inspection friction.",
+                "value": {
+                    "disruption_stage": "customs",
+                    "additional_disruption_hours": 18.0,
+                    "shipment_data": {
+                        "shipment_id": "CUSTOM-001",
+                        "route": "ASIA-EUR-01",
+                        "origin": "CNSHA",
+                        "destination": "NLRTM",
+                        "distance_km": 19500.0,
+                        "carrier_rating": 0.88,
+                        "scheduled_departure": "2026-02-01T08:00:00",
+                        "departure_delay_hours": 2.0,
+                        "scheduled_port_arrival": "2026-02-24T18:00:00",
+                        "actual_port_arrival": "2026-02-24T20:00:00",
+                        "port_arrival_delay_hours": 2.0,
+                        "port_congestion": 0.40,
+                        "weather_severity": 2.5,
+                        "port_processing_hours": 28.0,
+                        "customs_processing_hours": 18.0,
+                        "scheduled_delivery": "2026-02-28T12:00:00",
+                    },
+                },
+            },
+        },
+    )
+):
     """
     Simulates injecting additional disruption hours at a designated stage (port, customs, or transit).
     Applies the mathematical schedule slack absorption to determine true downstream ETA impact.
