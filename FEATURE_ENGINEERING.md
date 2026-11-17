@@ -25,9 +25,11 @@ This document provides a technical specification and mathematical derivation of 
 In international maritime shipping, container terminals allocate dedicated berthing windows (slots) to vessels. If a vessel arrives on schedule (or within a minor buffer), it proceeds directly to berth. However, if a vessel arrives **more than 4 hours late**, it forfeits its berthing slot and is relegated to the outer anchorage queue. When the port is heavily congested, this missed-slot penalty is catastrophic, resulting in compounded waiting dwell times.
 
 ### Mathematical Formula
-$$\text{missed\_slot\_penalty} = \begin{cases} 2.0 & \text{if } \text{arrival\_delay\_hours} > 4.0 \\ 1.0 & \text{otherwise} \end{cases}$$
+$$\text{SlotPenalty} = \begin{cases} 2.0 & \text{if } \text{ArrivalDelay} > 4.0\text{ h} \\ 1.0 & \text{otherwise} \end{cases}$$
 
-$$\text{congestion\_x\_missed\_slot} = \text{port\_congestion\_index} \times \text{missed\_slot\_penalty}$$
+$$\text{CongestionMissedSlot} = \text{PortCongestion} \times \text{SlotPenalty}$$
+
+Where $\text{CongestionMissedSlot}$ produces the engineered feature `congestion_x_missed_slot`.
 
 ### Original Input Columns
 - `port_congestion`: Continuous float $[0.0, 1.0]$ representing port anchorage occupancy.
@@ -45,7 +47,7 @@ $$\text{congestion\_x\_missed\_slot} = \text{port\_congestion\_index} \times \te
 Standard linear tree splits evaluate congestion and arrival delay independently. This interaction feature provides a non-linear threshold signal that allows the tree ensembles to immediately recognize when a ship transitions from a normal arrival into a delayed queuing cascade. In our empirical testing, `congestion_x_missed_slot` rose to **#4 in global Gini importance (0.0513)**.
 
 ### Handling Missing Values & Prediction Checkpoint
-- If `port_arrival_delay_hours` is missing (due to sensor dropout or prediction at departure checkpoint), the engine dynamically uses the operationally available delay estimate ($\text{departure\_delay\_hours} + \text{median\_transit\_delay}$).
+- If `port_arrival_delay_hours` is missing (due to sensor dropout or prediction at departure checkpoint), the engine dynamically uses the operationally available delay estimate ($\text{DepartureDelay} + \text{MedianTransitDelay}$).
 - If `port_congestion` is missing, it is imputed with the training median ($0.35$) and clipped to $[0.0, 1.0]$.
 
 ---
@@ -57,12 +59,12 @@ Commercial shipping timetables are intentionally planned with buffer time (sched
 
 ### Mathematical Formulas
 1. **Derivation of Initial Scheduled Buffer**:
-   $$\text{nominal\_transit\_hours} = \frac{\text{distance\_km}}{\text{nominal\_vessel\_speed\_kmh}} \quad (\text{speed} = 35.0 \text{ km/h})$$
-   $$\text{initial\_buffer\_hours} = \max\left(0.0, \;(T_1^{\text{sched}} - T_0^{\text{sched}})_{\text{hours}} - \text{nominal\_transit\_hours}\right)$$
-2. **Remaining Schedule Buffer**:
-   $$\text{remaining\_buffer\_hours} = \max\left(0.0, \;\text{initial\_buffer\_hours} - \text{accumulated\_delay\_hours}\right)$$
-3. **Unabsorbed Compounding Delay**:
-   $$\text{unabsorbed\_delay\_hours} = \max\left(0.0, \;\text{accumulated\_delay\_hours} - \text{initial\_buffer\_hours}\right)$$
+   $$\text{NominalTransitHours} = \frac{\text{Distance}}{\text{NominalSpeed}} \quad (\text{speed} = 35.0 \text{ km/h})$$
+   $$\text{InitialBufferHours} = \max\left(0.0, \;(T_1^{\text{sched}} - T_0^{\text{sched}})_{\text{hours}} - \text{NominalTransitHours}\right)$$
+2. **Remaining Schedule Buffer** (`remaining_buffer_hours`):
+   $$\text{RemainingBufferHours} = \max\left(0.0, \;\text{InitialBufferHours} - \text{AccumulatedDelay}\right)$$
+3. **Unabsorbed Compounding Delay** (`unabsorbed_delay_hours`):
+   $$\text{UnabsorbedDelayHours} = \max\left(0.0, \;\text{AccumulatedDelay} - \text{InitialBufferHours}\right)$$
 
 ### Original Input Columns
 - `scheduled_departure` ($T_0^{\text{sched}}$)
@@ -95,12 +97,12 @@ In international maritime transit, AIS (Automatic Identification System) transpo
 1. **Controlled Training Simulation**:
    - `simulate_training_missingness()` applies a reproducible 10% artificial missingness mask (`seed=42`) to `actual_port_arrival` and `port_arrival_delay_hours` exclusively on the training dataset.
    - Preserves original raw datasets and leaves test/validation data completely untouched (preventing data corruption).
-2. **Missingness Indicator**:
-   $$\text{is\_port\_arrival\_missing} = \begin{cases} 1.0 & \text{if } \text{actual\_port\_arrival is null / missing} \\ 0.0 & \text{otherwise} \end{cases}$$
+2. **Missingness Indicator** (`is_port_arrival_missing`):
+   $$\text{IsMissing} = \begin{cases} 1.0 & \text{if } T_1^{\text{act}} \text{ is null / missing} \\ 0.0 & \text{otherwise} \end{cases}$$
 3. **Leak-Free Imputation**:
    - The imputer computes `median_arrival_delay_` strictly from non-missing training records.
-   - For missing records, `port_arrival_delay_hours` is imputed as:
-     $$\hat{D}_{\text{port}} = \text{departure\_delay\_hours} + \text{median\_arrival\_delay\_}$$
+   - For missing records, port arrival delay is imputed as:
+     $$\hat{D}_{\text{port}} = \text{DepartureDelay} + \text{MedianArrivalDelay}$$
    - The indicator `is_port_arrival_missing` is preserved in the transformed matrix so the model learns that this record relied on imputed intermediate telemetry.
 
 ### Example Input and Output
@@ -119,7 +121,7 @@ Missingness in logistics is often non-random (Missing Not At Random - MNAR), fre
 ### A. Target Encoding (`route_encoded`)
 - **Strategy Choice**: While One-Hot Encoding is viable for 10 routes, `route_encoded` provides a single continuous metric summarizing historical route delay severity.
 - **Empirical Bayes Smoothing (m-estimate)**:
-  $$\text{route\_encoded} = \frac{n \times \bar{y}_{\text{route}} + m \times \bar{y}_{\text{global}}}{n + m} \quad (m = 5.0)$$
+  $$\text{RouteDelayEncoded} = \frac{n \times \bar{y}_{\text{route}} + m \times \bar{y}_{\text{global}}}{n + m} \quad (m = 5.0)$$
 - **Leakage Prevention**: Fitted strictly on training data ($X_{\text{train}}, y_{\text{train}}$). Unseen routes during inference automatically fall back to $\bar{y}_{\text{global}}$.
 
 ### B. Validated Distance (`distance_km`)
@@ -128,7 +130,7 @@ Missingness in logistics is often non-random (Missing Not At Random - MNAR), fre
 
 ### C. Weather × Distance Interaction (`weather_x_distance`)
 - **Formula**:
-  $$\text{weather\_x\_distance} = \text{weather\_severity} \times \text{distance\_km}$$
+  $$\text{WeatherDistanceInteraction} = \text{WeatherSeverity} \times \text{Distance}$$
 - **Business Meaning**: A Beaufort Scale storm (severity 4.5) on a short 1,000 km coastal feeder leg causes modest absolute delay, whereas that same storm across a 20,000 km oceanic crossing causes major slow-steaming and route diversion.
 
 ### Example Input and Output
