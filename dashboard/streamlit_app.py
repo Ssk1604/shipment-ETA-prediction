@@ -6,6 +6,7 @@ Interactive Enterprise ETA Prediction, Delay Propagation, and What-If Disruption
 import os
 import sys
 from datetime import datetime, timedelta
+from typing import Optional, Dict, Any, List
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if PROJECT_ROOT not in sys.path:
