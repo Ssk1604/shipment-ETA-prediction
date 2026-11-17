@@ -18,7 +18,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from src.predict import get_inference_engine
-from src.delay_propagation import format_hours_to_hhmm
+from src.delay_propagation import format_hours_to_hhmm, get_operational_status
 
 
 # Streamlit Page Configuration
@@ -137,33 +137,50 @@ if nav_choice == "Fleet Overview":
             st.plotly_chart(fig_donut, use_container_width=True)
 
         st.subheader("Active Shipment Registry")
-        st.caption("Operational tracking table. Time delays are formatted into exact Hours & Minutes (HH:MM) alongside raw decimal hours.")
-        
+        st.caption("Operational tracking table for fleet administrators. Metrics and delays are formatted for rapid dispatch decisions.")
+
+        col_filter, col_toggle = st.columns([3, 1])
+        with col_toggle:
+            show_audit_cols = st.toggle("🔍 Show Audit / Raw Columns", value=False, help="Reveals continuous decimal floats used by ML models.")
+
         df_registry = df_shipments.copy()
         df_registry["departure_delay_display"] = df_registry["departure_delay_hours"].apply(lambda x: format_hours_to_hhmm(x, show_early=False))
+        df_registry["congestion_display"] = (df_registry["port_congestion"] * 100).round().astype(int).astype(str) + "%"
+        df_registry["weather_display"] = df_registry["weather_severity"].apply(lambda x: f"{x:.2f} / 5")
         df_registry["final_delay_display"] = df_registry["final_delay_hours"].apply(format_hours_to_hhmm)
-        df_registry["sla_status"] = df_registry["is_delayed_24h"].map({0: "🟢 On-Time / Minor", 1: "🔴 Delay ≥24h"})
-        
+        df_registry["operational_status"] = df_registry["final_delay_hours"].apply(get_operational_status)
+
         display_cols = [
             "shipment_id", "route", "origin", "destination", "distance_km",
-            "departure_delay_display", "port_congestion", "weather_severity",
-            "final_delay_display", "sla_status", "final_delay_hours"
+            "departure_delay_display", "congestion_display", "weather_display",
+            "final_delay_display", "operational_status"
         ]
-        
+
+        rename_dict = {
+            "shipment_id": "Shipment ID",
+            "route": "Route",
+            "origin": "Origin",
+            "destination": "Dest",
+            "distance_km": "Distance (km)",
+            "departure_delay_display": "Departure Delay",
+            "congestion_display": "Congestion",
+            "weather_display": "Weather",
+            "final_delay_display": "Final Delay",
+            "operational_status": "Status",
+        }
+
+        if show_audit_cols:
+            display_cols.extend(["departure_delay_hours", "final_delay_hours", "port_congestion", "weather_severity", "is_delayed_24h"])
+            rename_dict.update({
+                "departure_delay_hours": "Dep Delay (h)",
+                "final_delay_hours": "Raw Final Delay (h)",
+                "port_congestion": "Raw Congestion (0-1)",
+                "weather_severity": "Raw Weather (1-5)",
+                "is_delayed_24h": "Delayed ≥24h Flag"
+            })
+
         st.dataframe(
-            df_registry[display_cols].rename(columns={
-                "shipment_id": "Shipment ID",
-                "route": "Route",
-                "origin": "Origin",
-                "destination": "Dest",
-                "distance_km": "Distance (km)",
-                "departure_delay_display": "Departure Delay (HH:MM)",
-                "port_congestion": "Congestion",
-                "weather_severity": "Weather",
-                "final_delay_display": "Final Delay (HH:MM)",
-                "sla_status": "SLA Status",
-                "final_delay_hours": "Raw Decimal (h)",
-            }),
+            df_registry[display_cols].rename(columns=rename_dict),
             use_container_width=True,
             height=320,
         )

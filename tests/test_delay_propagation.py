@@ -10,6 +10,7 @@ from src.delay_propagation import (
     compute_stage_propagation,
     simulate_delay_impact,
     format_hours_to_hhmm,
+    get_operational_status,
 )
 
 
@@ -73,4 +74,14 @@ def test_format_hours_to_hhmm():
     assert format_hours_to_hhmm(1.76) == "+1h 46m"
     assert format_hours_to_hhmm(0.0) == "On Schedule (0m)"
     assert format_hours_to_hhmm(None) == "N/A"
+
+
+def test_get_operational_status():
+    assert get_operational_status(-5.61) == "🟢 Early"
+    assert get_operational_status(0.0) == "🟢 On-Time"
+    assert get_operational_status(8.5) == "🟢 On-Time"
+    assert get_operational_status(18.2) == "🟡 Moderate Delay"
+    assert get_operational_status(28.0) == "🔴 Critical Delay (≥24h)"
+    assert get_operational_status(None) == "⚪ Unknown"
+
 

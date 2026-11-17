@@ -167,3 +167,29 @@ def format_hours_to_hhmm(hours: Optional[float], show_early: bool = True) -> str
     else:
         return f"+{h}h {m:02d}m"
 
+
+def get_operational_status(delay_hours: Optional[float], with_badge: bool = True) -> str:
+    """
+    Provides consistent operational status classification for logistics operators:
+      - Early: delay < -0.1 hours
+      - On-Time: -0.1 <= delay < 12.0 hours
+      - Moderate Delay: 12.0 <= delay < 24.0 hours
+      - Critical Delay (≥24h SLA breach): delay >= 24.0 hours
+    """
+    if delay_hours is None:
+        return "⚪ Unknown" if with_badge else "Unknown"
+    try:
+        val = float(delay_hours)
+    except (ValueError, TypeError):
+        return "⚪ Unknown" if with_badge else "Unknown"
+
+    if val < -0.1:
+        return "🟢 Early" if with_badge else "Early"
+    elif val < 12.0:
+        return "🟢 On-Time" if with_badge else "On-Time"
+    elif val < 24.0:
+        return "🟡 Moderate Delay" if with_badge else "Moderate Delay"
+    else:
+        return "🔴 Critical Delay (≥24h)" if with_badge else "Critical Delay (≥24h)"
+
+
