@@ -4,7 +4,7 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-green.svg)](https://fastapi.tiangolo.com/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.32+-red.svg)](https://streamlit.io/)
 [![scikit-learn](https://img.shields.io/badge/scikit--learn-1.4+-orange.svg)](https://scikit-learn.org/)
-[![Pytest](https://img.shields.io/badge/pytest-22%20passed-brightgreen.svg)](https://docs.pytest.org/)
+[![Pytest](https://img.shields.io/badge/pytest-40%20passed-brightgreen.svg)](https://docs.pytest.org/)
 
 An enterprise-grade Machine Learning and Delay Propagation platform for international multi-modal container logistics. Built as a technical solution for the **Aiqon Technical Take-Home Assignment**.
 
@@ -119,21 +119,21 @@ Evaluated on a held-out 20% **chronological test split** (50 unseen shipments):
 
 | Model Architecture | MAE (Hours) | RMSE (Hours) | $R^2$ Score | Error Reduction vs Baseline |
 | :--- | :---: | :---: | :---: | :---: |
-| **Baseline (Historical Mean)** | 23.69 h | 29.56 h | -0.0058 | Benchmark |
-| **Model A: RandomForestRegressor** | **9.62 h** | **18.94 h** | **0.5872** | **-59.4% Error** |
+| **Baseline (Historical Mean)** | 23.81 h | 30.10 h | -0.0004 | Benchmark |
+| **Model A: RandomForestRegressor** | **6.89 h** | **9.72 h** | **0.8958** | **-71.1% Error** |
 
 ### Classification Benchmark (Delay Risk $\ge 24$ Hours)
 
 | Model Architecture | Accuracy | Precision | Recall | F1-Score | ROC-AUC |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Model B: RandomForestClassifier** | **92.0%** | **100.0%** | **81.0%** | **0.8947** | **0.9787** |
+| **Model B: RandomForestClassifier** | **88.0%** | **76.2%** | **94.1%** | **0.8421** | **0.9162** |
 
 ### Top 5 Global Predictive Features (Gini Importance)
-1. `port_arrival_delay_hours`: 43.1%
-2. `customs_processing_hours`: 29.6%
-3. `port_processing_hours`: 10.0%
-4. `congestion_processing_interaction`: 5.6%
-5. `departure_weather_composite`: 5.2%
+1. `port_arrival_delay_hours`: 44.6%
+2. `customs_processing_hours`: 35.5%
+3. `port_processing_hours`: 7.4%
+4. `congestion_x_missed_slot`: 5.1%
+5. `congestion_processing_interaction`: 1.8%
 
 ---
 
@@ -174,12 +174,6 @@ uvicorn app.main:app --reload --port 8000
 streamlit run dashboard/streamlit_app.py
 ```
 - Dashboard URL: [http://localhost:8501](http://localhost:8501)
-
-### 6. Generate Technical PDF Report
-```powershell
-python -m reports.generate_pdf_report
-```
-- Compiled report saved to: `reports/Aiqon_Shipment_ETA_Technical_Report.pdf`
 
 ---
 
@@ -321,15 +315,14 @@ aiqon-shipment-eta/
 │   ├── __init__.py
 │   ├── test_data_generator.py          # Generator shape, ranges, and reproducibility tests
 │   ├── test_delay_propagation.py       # Mathematical slack absorption & buffer tests
+│   ├── test_feature_engineering.py     # Feature pipeline & transformer tests
 │   ├── test_prediction.py              # ML inference & missing telemetry imputation tests
 │   └── test_api.py                     # FastAPI TestClient end-to-end integration tests
 ├── reports/
-│   ├── figures/                        # High-resolution evaluation plots
-│   │   ├── regression_actual_vs_predicted.png
-│   │   ├── confusion_matrix.png
-│   │   └── feature_importance.png
-│   ├── generate_pdf_report.py          # PDF report compiler (ReportLab)
-│   └── Aiqon_Shipment_ETA_Technical_Report.pdf  # 3-page executive technical report
+│   └── figures/                        # High-resolution evaluation plots
+│       ├── regression_actual_vs_predicted.png
+│       ├── confusion_matrix.png
+│       └── feature_importance.png
 ├── requirements.txt                    # Pinned Python package dependencies
 └── README.md                           # Comprehensive documentation
 ```
