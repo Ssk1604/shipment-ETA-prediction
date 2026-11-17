@@ -142,9 +142,16 @@ def explain_shipment_delay(
     est_congestion_delay = round(port_cong * max(0.0, port_proc - 20.0), 2)
     est_customs_delay = round(max(0.0, customs_proc - 16.0), 2)
     
-    # Slack absorbed
+    # Stage accounting math
     gross_disruption = dep_delay + est_ocean_weather_delay + est_congestion_delay + est_customs_delay
-    slack_absorbed = max(0.0, round(gross_disruption - predicted_delay_hours, 2))
+    buffer_impact = round(predicted_delay_hours - gross_disruption, 2)
+
+    if buffer_impact < -0.01:
+        buffer_desc = "Commercial schedule buffer absorbing upstream delays"
+    elif buffer_impact > 0.01:
+        buffer_desc = "Unabsorbed delay & compounding downstream bottleneck"
+    else:
+        buffer_desc = "Neutral schedule buffer (zero net absorption)"
 
     risk_category = "LOW" if predicted_delay_hours < 12.0 else ("MEDIUM" if predicted_delay_hours < 24.0 else "HIGH")
 
@@ -157,10 +164,10 @@ def explain_shipment_delay(
             {"stage": "Weather-related Transit Delay", "delay_contribution_hours": est_ocean_weather_delay, "description": "Sailing slowdown and storm rerouting induced by adverse sea state"},
             {"stage": "Port Congestion / Anchorage Delay", "delay_contribution_hours": est_congestion_delay, "description": "Anchorage waiting and berth congestion dwell time"},
             {"stage": "Customs Clearance Delay", "delay_contribution_hours": est_customs_delay, "description": "Regulatory inspection, documentation holds, and customs processing"},
-            {"stage": "Schedule Buffer Absorption", "delay_contribution_hours": -slack_absorbed, "description": "Commercial schedule buffer time absorbing upstream delays"},
+            {"stage": "Schedule Buffer Absorption", "delay_contribution_hours": buffer_impact, "description": buffer_desc},
         ],
         "gross_delay_hours": round(gross_disruption, 2),
-        "buffer_absorbed_hours": round(slack_absorbed, 2),
+        "buffer_absorbed_hours": round(abs(buffer_impact) if buffer_impact < 0 else 0.0, 2),
         "net_explained_delay_hours": round(predicted_delay_hours, 2),
         "methodology_note": (
             "Attributions reflect physical logistics stage accounting and schedule buffer absorption. "

@@ -307,32 +307,41 @@ elif nav_choice == "Shipment ETA & Explainability":
             st.caption("Operational stage breakdown distinguishing newly introduced disruptions from schedule buffer mitigation.")
 
             stages = prediction["explanation"]["stages"]
-            delay_stages = [s for s in stages if s["delay_contribution_hours"] >= 0]
-            buffer_stages = [s for s in stages if s["delay_contribution_hours"] < 0]
+            delay_stages = [s for s in stages if "Buffer" not in s["stage"]]
+            buffer_stages = [s for s in stages if "Buffer" in s["stage"]]
 
             gross_delay = sum(s["delay_contribution_hours"] for s in delay_stages)
-            absorbed_delay = abs(sum(s["delay_contribution_hours"] for s in buffer_stages))
+            total_buffer_impact = sum(s["delay_contribution_hours"] for s in buffer_stages)
 
             st.markdown("##### ⏱️ Stage-Level Delays Incurred (Gross)")
             for s in delay_stages:
                 hours = s["delay_contribution_hours"]
                 st.markdown(
-                    f"- **{s['stage']}**: `{format_hours_to_hhmm(hours, show_early=False)}` _(+{hours:.2f}h)_  \n"
+                    f"- **{s['stage']}**: `{format_hours_to_hhmm(hours, show_early=False)}` _({hours:+.2f}h)_  \n"
                     f"  <span style='color: #666; font-size: 0.85rem;'>{s['description']}</span>",
                     unsafe_allow_html=True,
                 )
-            st.markdown(f"**Gross Delay Incurred:** `{format_hours_to_hhmm(gross_delay, show_early=False)}` _(+{gross_delay:.2f}h)_")
+            st.markdown(f"**Gross Delay Incurred:** `{format_hours_to_hhmm(gross_delay, show_early=False)}` _({gross_delay:+.2f}h)_")
 
             st.markdown("---")
-            st.markdown("##### 🛡️ Schedule Buffer Absorption (Mitigation)")
+            if total_buffer_impact < -0.01:
+                st.markdown("##### 🛡️ Schedule Buffer Absorption (Mitigation)")
+            elif total_buffer_impact > 0.01:
+                st.markdown("##### ⚠️ Schedule Buffer Deficit (Compounding Delay)")
+            else:
+                st.markdown("##### ⚖️ Schedule Buffer (Neutral / Zero Impact)")
+
             for s in buffer_stages:
-                hours = abs(s["delay_contribution_hours"])
+                val = s["delay_contribution_hours"]
+                color = "#28a745" if val < -0.01 else ("#d62728" if val > 0.01 else "#6c757d")
                 st.markdown(
-                    f"- **{s['stage']}**: `{format_hours_to_hhmm(-hours, show_early=False)}` _(-{hours:.2f}h)_  \n"
-                    f"  <span style='color: #28a745; font-size: 0.85rem;'>{s['description']}</span>",
+                    f"- **{s['stage']}**: `{format_hours_to_hhmm(val, show_early=False)}` _({val:+.2f}h)_  \n"
+                    f"  <span style='color: {color}; font-size: 0.85rem;'>{s['description']}</span>",
                     unsafe_allow_html=True,
                 )
-            st.markdown(f"**Total Buffer Absorbed:** `{format_hours_to_hhmm(-absorbed_delay, show_early=False)}` _(-{absorbed_delay:.2f}h)_")
+
+            buffer_title = "Total Buffer Absorbed:" if total_buffer_impact <= 0 else "Total Buffer Deficit / Impact:"
+            st.markdown(f"**{buffer_title}** `{format_hours_to_hhmm(total_buffer_impact, show_early=False)}` _({total_buffer_impact:+.2f}h)_")
 
             st.markdown("---")
             st.markdown(

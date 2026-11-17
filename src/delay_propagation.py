@@ -154,7 +154,7 @@ def format_hours_to_hhmm(hours: Optional[float], show_early: bool = True) -> str
         return "N/A"
 
     if abs(val) < 1e-4:
-        return "On Schedule (0m)"
+        return "On Schedule (0m)" if show_early else "0h 00m"
 
     is_negative = val < 0
     total_minutes = int(round(abs(val) * 60))
