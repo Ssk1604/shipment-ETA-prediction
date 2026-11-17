@@ -23,7 +23,6 @@ Thumbs.db
 
 # Generated Reports
 *.pdf
-!reports/*.pdf
 
 # Databases & Large Local Cache
 *.db
