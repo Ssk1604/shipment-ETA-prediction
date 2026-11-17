@@ -496,6 +496,144 @@ elif nav_choice == "Delay Propagation Engine":
         inh_final_h = port_delay_h if port_delay_h is not None else dep_delay_h
         change_final_h = final_delay_h - inh_final_h
 
+        # -------------------------------------------------------------
+        # Visual Delay Propagation Timeline (Stepper Component)
+        # -------------------------------------------------------------
+        st.subheader("Visual Delay Propagation Timeline")
+        st.caption("End-to-end journey progression tracking milestone schedule deviations and disruption compounding.")
+
+        # 1. Origin Departure
+        if dep_delay_h < -0.1:
+            c1, lbl1 = "#16a34a", f"Early ({format_hours_to_hhmm(dep_delay_h, show_early=False)})"
+        elif abs(dep_delay_h) <= 0.1:
+            c1, lbl1 = "#64748b", "On Schedule (0m)"
+        else:
+            c1, lbl1 = "#dc2626", f"Late ({format_hours_to_hhmm(dep_delay_h, show_early=False)})"
+
+        # 2. Ocean Transit
+        dist_km = float(record.get("distance_km", 0.0) or 0.0)
+        weather_val = float(record.get("weather_severity", 2.0) or 2.0)
+        if change_port_h is not None:
+            if change_port_h > 2.0:
+                c2, lbl2 = "#ea580c", f"Disruption (+{change_port_h:.1f}h)"
+            elif change_port_h < -1.0:
+                c2, lbl2 = "#16a34a", f"Buffer Absorbed ({change_port_h:.1f}h)"
+            else:
+                c2, lbl2 = "#64748b", "Nominal Sailing"
+        else:
+            c2, lbl2 = "#64748b", "In Transit"
+
+        # 3. Port Arrival
+        if act_port is None:
+            c3, lbl3 = "#ea580c", "Telemetry Gap / Imputed"
+        elif port_delay_h is not None:
+            if port_delay_h < -0.1:
+                c3, lbl3 = "#16a34a", f"Early ({format_hours_to_hhmm(port_delay_h, show_early=False)})"
+            elif abs(port_delay_h) <= 0.1:
+                c3, lbl3 = "#64748b", "On Schedule (0m)"
+            else:
+                c3, lbl3 = "#dc2626", f"Late ({format_hours_to_hhmm(port_delay_h, show_early=False)})"
+        else:
+            c3, lbl3 = "#64748b", "In Transit"
+
+        # 4. Port & Customs Dwell
+        port_proc_h = float(record.get("port_processing_hours", 24.0) or 24.0)
+        cust_proc_h = float(record.get("customs_processing_hours", 16.0) or 16.0)
+        port_cong_pct = float(record.get("port_congestion", 0.3) or 0.3) * 100.0
+        if change_final_h > 2.0:
+            c4, lbl4 = "#ea580c", f"Disruption (+{change_final_h:.1f}h)"
+        elif change_final_h < -1.0:
+            c4, lbl4 = "#16a34a", f"Buffer Absorbed ({change_final_h:.1f}h)"
+        else:
+            c4, lbl4 = "#64748b", "Nominal Clearance"
+
+        # 5. Final Consignee Delivery
+        if final_delay_h < -0.1:
+            c5, lbl5 = "#16a34a", f"Early ({format_hours_to_hhmm(final_delay_h, show_early=False)})"
+        elif abs(final_delay_h) <= 0.1:
+            c5, lbl5 = "#64748b", "On Schedule (0m)"
+        else:
+            c5, lbl5 = "#dc2626", f"Late ({format_hours_to_hhmm(final_delay_h, show_early=False)})"
+
+        def _render_step_card(step_num: int, title: str, icon: str, color: str, main_txt: str, sub_txt: str, pill_txt: str) -> str:
+            return f"""
+            <div style="
+                flex: 1;
+                min-width: 180px;
+                background: #ffffff;
+                border: 1px solid #e2e8f0;
+                border-top: 4px solid {color};
+                border-radius: 8px;
+                padding: 12px 14px;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+            ">
+                <div>
+                    <div style="font-size: 0.74rem; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.4px; margin-bottom: 5px;">
+                        {icon} {step_num}. {title}
+                    </div>
+                    <div style="font-size: 0.95rem; font-weight: 700; color: #1e293b; margin-bottom: 2px;">
+                        {main_txt}
+                    </div>
+                    <div style="font-size: 0.74rem; color: #64748b; margin-bottom: 10px;">
+                        {sub_txt}
+                    </div>
+                </div>
+                <div>
+                    <span style="
+                        background-color: {color}18;
+                        color: {color};
+                        border: 1px solid {color}40;
+                        padding: 3px 8px;
+                        border-radius: 12px;
+                        font-size: 0.72rem;
+                        font-weight: 600;
+                        display: inline-block;
+                    ">
+                        {pill_txt}
+                    </span>
+                </div>
+            </div>
+            """
+
+        arrow_sep = """
+        <div style="display: flex; align-items: center; justify-content: center; color: #94a3b8; font-size: 1.3rem; font-weight: bold; padding: 0 4px;">
+            ➔
+        </div>
+        """
+
+        card1 = _render_step_card(1, "Origin Departure", "🚢", c1, fmt_dt(act_dep), f"Sched: {fmt_dt(sched_dep)}", lbl1)
+        card2 = _render_step_card(2, "Ocean Transit", "🌊", c2, f"{dist_km:,.0f} km Corridor", f"Sea Severity: {weather_val:.2f}/5", lbl2)
+        card3 = _render_step_card(3, "Port Arrival", "⚓", c3, fmt_dt(act_port) if act_port is not None else "Missing Telemetry", f"Sched: {fmt_dt(sched_port)}", lbl3)
+        card4 = _render_step_card(4, "Terminal & Customs", "🏢", c4, f"Dwell: {port_proc_h:.0f}h | Cust: {cust_proc_h:.0f}h", f"Congestion: {port_cong_pct:.0f}%", lbl4)
+        card5 = _render_step_card(5, "Consignee Delivery", "📦", c5, fmt_dt(act_del), f"Sched: {fmt_dt(sched_del)}", lbl5)
+
+        timeline_html = f"""
+        <div style="display: flex; align-items: stretch; justify-content: space-between; gap: 4px; margin: 12px 0 16px 0; overflow-x: auto; padding: 4px 0;">
+            {card1}
+            {arrow_sep}
+            {card2}
+            {arrow_sep}
+            {card3}
+            {arrow_sep}
+            {card4}
+            {arrow_sep}
+            {card5}
+        </div>
+        """
+        st.markdown(timeline_html, unsafe_allow_html=True)
+        st.caption(
+            "🎨 **Timeline Color Code:** "
+            "<span style='color: #dc2626; font-weight: bold;'>■ Red</span>: Late | "
+            "<span style='color: #16a34a; font-weight: bold;'>■ Green</span>: Early / Buffer Absorbed | "
+            "<span style='color: #64748b; font-weight: bold;'>■ Grey</span>: On Schedule | "
+            "<span style='color: #ea580c; font-weight: bold;'>■ Orange</span>: New Disruption Incurred",
+            unsafe_allow_html=True,
+        )
+        st.markdown("---")
+
         col_hdr, col_toggle = st.columns([3, 1])
         with col_hdr:
             st.subheader("Checkpoint Milestones")
