@@ -107,14 +107,30 @@ if nav_choice == "Fleet Overview":
         
         with col_left:
             st.subheader("Delay Distribution across Global Trade Lanes")
+            df_plot = df_shipments.copy()
+            df_plot["Delay (HH:MM)"] = df_plot["final_delay_hours"].apply(format_hours_to_hhmm)
+            df_plot["Status"] = df_plot["final_delay_hours"].apply(get_operational_status)
+
             fig_box = px.box(
-                df_shipments,
+                df_plot,
                 x="route",
                 y="final_delay_hours",
                 color="route",
                 points="all",
+                hover_name="shipment_id",
+                hover_data={
+                    "route": False,
+                    "Delay (HH:MM)": True,
+                    "Status": True,
+                    "final_delay_hours": ":.2f",
+                },
                 title="Final Delay Variance by Commercial Route",
-                labels={"final_delay_hours": "Final Delay (Hours)", "route": "Route Code"},
+                labels={
+                    "final_delay_hours": "Final Delay (Decimal Hours)",
+                    "route": "Route Code",
+                    "Delay (HH:MM)": "Exact Delay",
+                    "Status": "Operational Status",
+                },
             )
             fig_box.add_hline(y=24.0, line_dash="dash", line_color="red", annotation_text="24h SLA Threshold")
             fig_box.update_layout(showlegend=False, height=420)
