@@ -49,6 +49,7 @@ class PredictionExplanation(BaseModel):
 class PredictionResponse(BaseModel):
     shipment_id: str
     predicted_delay_hours: float
+    predicted_delay_formatted: Optional[str] = Field(None, json_schema_extra={"example": "+10h 56m"})
     predicted_eta: Optional[str]
     scheduled_delivery: Optional[str]
     delay_probability: float
@@ -60,6 +61,7 @@ class PredictionResponse(BaseModel):
 class BatchPredictionItem(BaseModel):
     shipment_id: str
     predicted_delay_hours: float
+    predicted_delay_formatted: Optional[str] = Field(None, json_schema_extra={"example": "+10h 56m"})
     predicted_eta: Optional[str]
     scheduled_delivery: Optional[str]
     delay_probability: float
@@ -92,6 +94,9 @@ class SimulationResponse(BaseModel):
     net_effective_delay_increase_hours: float
     original_predicted_delay_hours: float
     revised_predicted_delay_hours: float
+    original_delay_formatted: Optional[str] = Field(None, json_schema_extra={"example": "+4h 30m"})
+    revised_delay_formatted: Optional[str] = Field(None, json_schema_extra={"example": "+16h 30m"})
+    slack_absorbed_formatted: Optional[str] = Field(None, json_schema_extra={"example": "-12h 00m"})
     original_eta: Optional[str]
     revised_eta: Optional[str]
     risk_tier: str

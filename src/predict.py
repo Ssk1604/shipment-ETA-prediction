@@ -20,7 +20,7 @@ import joblib
 import numpy as np
 import pandas as pd
 
-from src.delay_propagation import simulate_delay_impact
+from src.delay_propagation import simulate_delay_impact, format_hours_to_hhmm
 from src.explainability import explain_shipment_delay
 
 
@@ -91,6 +91,7 @@ class ShipmentInferenceEngine:
         return {
             "shipment_id": shipment_dict.get("shipment_id", "CUSTOM"),
             "predicted_delay_hours": pred_delay_hours,
+            "predicted_delay_formatted": format_hours_to_hhmm(pred_delay_hours),
             "predicted_eta": predicted_eta_iso,
             "scheduled_delivery": scheduled_delivery_raw,
             "delay_probability": round(pred_prob, 4),
@@ -141,6 +142,7 @@ class ShipmentInferenceEngine:
             results.append({
                 "shipment_id": row_dict.get("shipment_id", f"BATCH-{i:04d}"),
                 "predicted_delay_hours": delay_h,
+                "predicted_delay_formatted": format_hours_to_hhmm(delay_h),
                 "predicted_eta": predicted_eta_iso,
                 "scheduled_delivery": sched_delivery,
                 "delay_probability": round(prob, 4),
@@ -195,6 +197,9 @@ class ShipmentInferenceEngine:
             "net_effective_delay_increase_hours": simulation_math["delta_impact_hours"],
             "original_predicted_delay_hours": base_delay,
             "revised_predicted_delay_hours": new_delay,
+            "original_delay_formatted": format_hours_to_hhmm(base_delay),
+            "revised_delay_formatted": format_hours_to_hhmm(new_delay),
+            "slack_absorbed_formatted": format_hours_to_hhmm(-simulation_math["absorbed_by_slack"], show_early=False),
             "original_eta": base_prediction["predicted_eta"],
             "revised_eta": revised_eta,
             "risk_tier": "HIGH" if new_delay >= 24.0 else ("MEDIUM" if new_delay >= 12.0 else "LOW"),

@@ -32,6 +32,7 @@ def test_predict_single_structure(engine):
     }
     pred = engine.predict_single(sample_shipment)
     assert "predicted_delay_hours" in pred
+    assert "predicted_delay_formatted" in pred
     assert "predicted_eta" in pred
     assert "delay_probability" in pred
     assert pred["risk_tier"] in ["LOW", "MEDIUM", "HIGH"]

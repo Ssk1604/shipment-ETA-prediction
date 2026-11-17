@@ -9,6 +9,7 @@ from src.delay_propagation import (
     calculate_delay_hours,
     compute_stage_propagation,
     simulate_delay_impact,
+    format_hours_to_hhmm,
 )
 
 
@@ -62,3 +63,14 @@ def test_simulate_delay_impact():
     assert res["absorbed_by_slack"] == 8.0
     assert res["delta_impact_hours"] == 12.0
     assert res["new_final_delay_hours"] == 27.0
+
+
+def test_format_hours_to_hhmm():
+    assert format_hours_to_hhmm(10.94) == "+10h 56m"
+    assert format_hours_to_hhmm(-5.61) == "-5h 37m (Early)"
+    assert format_hours_to_hhmm(-5.61, show_early=False) == "-5h 37m"
+    assert format_hours_to_hhmm(0.57) == "+0h 34m"
+    assert format_hours_to_hhmm(1.76) == "+1h 46m"
+    assert format_hours_to_hhmm(0.0) == "On Schedule (0m)"
+    assert format_hours_to_hhmm(None) == "N/A"
+

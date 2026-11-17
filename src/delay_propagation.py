@@ -133,3 +133,37 @@ def simulate_delay_impact(
         "delta_impact_hours": round(effective_increase, 2),
         "new_final_delay_hours": round(new_delay, 2),
     }
+
+
+def format_hours_to_hhmm(hours: Optional[float], show_early: bool = True) -> str:
+    """
+    Converts continuous decimal hours into human-readable hours and minutes notation.
+
+    Examples:
+        10.94 -> "+10h 56m"
+        -5.61 -> "-5h 37m (Early)" (or "-5h 37m" if show_early=False)
+        0.0   -> "On Schedule (0m)"
+        0.57  -> "+0h 34m"
+        None  -> "N/A"
+    """
+    if hours is None:
+        return "N/A"
+    try:
+        val = float(hours)
+    except (ValueError, TypeError):
+        return "N/A"
+
+    if abs(val) < 1e-4:
+        return "On Schedule (0m)"
+
+    is_negative = val < 0
+    total_minutes = int(round(abs(val) * 60))
+    h = total_minutes // 60
+    m = total_minutes % 60
+
+    if is_negative:
+        suffix = " (Early)" if show_early else ""
+        return f"-{h}h {m:02d}m{suffix}"
+    else:
+        return f"+{h}h {m:02d}m"
+

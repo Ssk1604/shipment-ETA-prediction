@@ -18,6 +18,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from src.predict import get_inference_engine
+from src.delay_propagation import format_hours_to_hhmm
 
 
 # Streamlit Page Configuration
@@ -97,7 +98,7 @@ if nav_choice == "Fleet Overview":
         col1.metric("Total Active Shipments", f"{total_shipments:,}")
         col2.metric("On-Time / Minor (<24h)", f"{on_time:,}", f"{(on_time/total_shipments):.1%}")
         col3.metric("Delayed (≥24h)", f"{delayed_24h:,}", f"{(delayed_24h/total_shipments):.1%}", delta_color="inverse")
-        col4.metric("Avg Final Delay", f"{avg_delay:.1f} hrs")
+        col4.metric("Avg Final Delay", format_hours_to_hhmm(avg_delay), f"{avg_delay:+.2f}h decimal")
         col5.metric("Severe Port Congestion", f"{high_congestion}")
 
         st.markdown("---")
@@ -136,14 +137,35 @@ if nav_choice == "Fleet Overview":
             st.plotly_chart(fig_donut, use_container_width=True)
 
         st.subheader("Active Shipment Registry")
+        st.caption("Operational tracking table. Time delays are formatted into exact Hours & Minutes (HH:MM) alongside raw decimal hours.")
+        
+        df_registry = df_shipments.copy()
+        df_registry["departure_delay_display"] = df_registry["departure_delay_hours"].apply(lambda x: format_hours_to_hhmm(x, show_early=False))
+        df_registry["final_delay_display"] = df_registry["final_delay_hours"].apply(format_hours_to_hhmm)
+        df_registry["sla_status"] = df_registry["is_delayed_24h"].map({0: "🟢 On-Time / Minor", 1: "🔴 Delay ≥24h"})
+        
+        display_cols = [
+            "shipment_id", "route", "origin", "destination", "distance_km",
+            "departure_delay_display", "port_congestion", "weather_severity",
+            "final_delay_display", "sla_status", "final_delay_hours"
+        ]
+        
         st.dataframe(
-            df_shipments[[
-                "shipment_id", "route", "origin", "destination", "distance_km",
-                "departure_delay_hours", "port_congestion", "weather_severity",
-                "final_delay_hours", "is_delayed_24h"
-            ]],
+            df_registry[display_cols].rename(columns={
+                "shipment_id": "Shipment ID",
+                "route": "Route",
+                "origin": "Origin",
+                "destination": "Dest",
+                "distance_km": "Distance (km)",
+                "departure_delay_display": "Departure Delay (HH:MM)",
+                "port_congestion": "Congestion",
+                "weather_severity": "Weather",
+                "final_delay_display": "Final Delay (HH:MM)",
+                "sla_status": "SLA Status",
+                "final_delay_hours": "Raw Decimal (h)",
+            }),
             use_container_width=True,
-            height=300,
+            height=320,
         )
 
 
@@ -167,7 +189,7 @@ elif nav_choice == "Shipment ETA & Explainability":
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("Commercial Scheduled SLA", str(row["scheduled_delivery"])[:16].replace("T", " "))
         m2.metric("Predicted Dynamic ETA", str(prediction["predicted_eta"])[:16].replace("T", " "))
-        m3.metric("Predicted Final Delay", f"{prediction['predicted_delay_hours']:+.1f} hrs")
+        m3.metric("Predicted Final Delay", format_hours_to_hhmm(prediction['predicted_delay_hours']), f"{prediction['predicted_delay_hours']:+.2f}h raw")
         
         tier = prediction["risk_tier"]
         badge_html = f"<div style='margin-top: 10px;'><span class='badge-{tier.lower()}'>{tier} RISK ({prediction['delay_probability']:.1%})</span></div>"
@@ -190,7 +212,7 @@ elif nav_choice == "Shipment ETA & Explainability":
                 measure=["relative", "relative", "relative", "relative", "relative", "total"],
                 x=stage_names + ["Net Predicted Delay"],
                 textposition="outside",
-                text=[f"{d:+.1f}h" for d in delays] + [f"{prediction['predicted_delay_hours']:+.1f}h"],
+                text=[f"{format_hours_to_hhmm(d, show_early=False)}" for d in delays] + [format_hours_to_hhmm(prediction['predicted_delay_hours'])],
                 y=delays + [prediction["predicted_delay_hours"]],
                 connector={"line": {"color": "rgb(63, 63, 63)"}},
                 decreasing={"marker": {"color": "#2ca02c"}},
@@ -210,7 +232,7 @@ elif nav_choice == "Shipment ETA & Explainability":
             for s in stages:
                 hours = s["delay_contribution_hours"]
                 sign = "+" if hours > 0 else ""
-                st.markdown(f"**{s['stage']}**: `{sign}{hours:.1f}h`  \n_{s['description']}_")
+                st.markdown(f"**{s['stage']}**: `{format_hours_to_hhmm(hours, show_early=False)}` _({sign}{hours:.2f}h raw)_  \n_{s['description']}_")
 
             st.info(
                 "💡 **Engineering Note**: Unlike static ML feature weights, this waterfall reflects "
@@ -238,14 +260,14 @@ elif nav_choice == "Delay Propagation Engine":
 
         # Timeline comparison
         timeline_data = [
-            {"Stage": "1. Origin Departure", "Scheduled": sched_dep, "Actual": act_dep, "Delay": record["departure_delay_hours"]},
-            {"Stage": "2. Port Arrival", "Scheduled": sched_port, "Actual": act_port, "Delay": record["port_arrival_delay_hours"] if pd.notnull(record["port_arrival_delay_hours"]) else 0.0},
-            {"Stage": "3. Final Consignee Delivery", "Scheduled": sched_del, "Actual": act_del, "Delay": record["final_delay_hours"]},
+            {"Stage": "1. Origin Departure", "Scheduled": str(sched_dep)[:16].replace("T", " "), "Actual": str(act_dep)[:16].replace("T", " "), "Delay (HH:MM)": format_hours_to_hhmm(record["departure_delay_hours"], show_early=False), "Decimal (h)": f"{record['departure_delay_hours']:.2f}h"},
+            {"Stage": "2. Port Arrival", "Scheduled": str(sched_port)[:16].replace("T", " "), "Actual": str(act_port)[:16].replace("T", " "), "Delay (HH:MM)": format_hours_to_hhmm(record["port_arrival_delay_hours"], show_early=False) if pd.notnull(record["port_arrival_delay_hours"]) else "N/A", "Decimal (h)": f"{record['port_arrival_delay_hours']:.2f}h" if pd.notnull(record["port_arrival_delay_hours"]) else "N/A"},
+            {"Stage": "3. Final Consignee Delivery", "Scheduled": str(sched_del)[:16].replace("T", " "), "Actual": str(act_del)[:16].replace("T", " "), "Delay (HH:MM)": format_hours_to_hhmm(record["final_delay_hours"]), "Decimal (h)": f"{record['final_delay_hours']:.2f}h"},
         ]
         df_time = pd.DataFrame(timeline_data)
 
         st.subheader("Checkpoint Milestones")
-        st.table(df_time)
+        st.dataframe(df_time, use_container_width=True)
 
         # Propagation math breakdown
         st.subheader("Mathematical Propagation Principles")
@@ -296,9 +318,9 @@ elif nav_choice == "What-If Disruption Simulator":
         )
 
         c1, c2, c3 = st.columns(3)
-        c1.metric("Original Predicted Delay", f"{sim_result['original_predicted_delay_hours']:.1f}h")
-        c2.metric("Schedule Slack Absorbed", f"-{sim_result['absorbed_by_schedule_slack_hours']:.1f}h", delta_color="normal")
-        c3.metric("Revised Predicted Delay", f"{sim_result['revised_predicted_delay_hours']:.1f}h", delta=f"{sim_result['net_effective_delay_increase_hours']:+.1f}h", delta_color="inverse")
+        c1.metric("Original Predicted Delay", format_hours_to_hhmm(sim_result['original_predicted_delay_hours']), f"{sim_result['original_predicted_delay_hours']:+.2f}h raw")
+        c2.metric("Schedule Slack Absorbed", format_hours_to_hhmm(-sim_result['absorbed_by_schedule_slack_hours'], show_early=False), f"-{sim_result['absorbed_by_schedule_slack_hours']:.2f}h raw")
+        c3.metric("Revised Predicted Delay", format_hours_to_hhmm(sim_result['revised_predicted_delay_hours']), delta=format_hours_to_hhmm(sim_result['net_effective_delay_increase_hours']))
 
         st.markdown("---")
         st.markdown(f"**Baseline ETA:** `{sim_result['original_eta']}`")
