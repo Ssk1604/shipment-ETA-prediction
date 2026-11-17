@@ -352,8 +352,18 @@ elif nav_choice == "Shipment ETA & Explainability":
             st.caption("Operational stage breakdown distinguishing newly introduced disruptions from schedule buffer mitigation.")
 
             stages = prediction["explanation"]["stages"]
-            delay_stages = [s for s in stages if "Buffer" not in s["stage"]]
-            buffer_stages = [s for s in stages if "Buffer" in s["stage"]]
+
+            def is_buffer_stage(stg: dict) -> bool:
+                name = str(stg.get("stage", "")).lower()
+                return "buffer" in name or "slack" in name
+
+            delay_stages = [s for s in stages if not is_buffer_stage(s)]
+            buffer_stages = [s for s in stages if is_buffer_stage(s)]
+
+            # Robust fallback guarantee: if no stage matched by name, treat the last item as buffer
+            if not buffer_stages and len(stages) >= 5:
+                delay_stages = stages[:-1]
+                buffer_stages = [stages[-1]]
 
             gross_delay = sum(s["delay_contribution_hours"] for s in delay_stages)
             total_buffer_impact = sum(s["delay_contribution_hours"] for s in buffer_stages)
